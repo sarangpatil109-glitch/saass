@@ -9,7 +9,8 @@ export default async function VendorSettingsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (process.env.DEVELOPMENT_MODE !== 'true' && !user) redirect('/login')
 
-  const { data: vendorProfile } = await supabase.from('vendors').select('*').eq('user_id', (user?.id || '')).single()
+  const { data: vendorUser } = await supabase.from('vendor_users').select('vendor_id, vendors(*)').eq('user_id', (user?.id || '')).single()
+  const vendorProfile = vendorUser?.vendors as any;
   if (!vendorProfile) {
     return (
       <div className="p-8 text-center text-gray-500">

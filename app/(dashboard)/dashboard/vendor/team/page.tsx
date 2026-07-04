@@ -14,7 +14,8 @@ export default async function VendorTeamPage() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', (user?.id || '')).single()
   if (process.env.DEVELOPMENT_MODE !== 'true' && profile?.role !== 'vendor') redirect('/unauthorized')
 
-  const { data: vendor } = await supabase.from('vendors').select('id, status').eq('user_id', (user?.id || '')).single()
+  const { data: vendorUser } = await supabase.from('vendor_users').select('vendor_id, vendors(id, status)').eq('user_id', (user?.id || '')).single();
+  const vendor = vendorUser?.vendors as any;
   
   if (!vendor || vendor.status !== 'Active') {
     redirect('/dashboard/vendor')

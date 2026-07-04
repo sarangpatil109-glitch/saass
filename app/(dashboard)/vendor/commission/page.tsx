@@ -10,7 +10,8 @@ export default async function VendorWalletPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (process.env.DEVELOPMENT_MODE !== 'true' && !user) redirect('/login')
 
-  const { data: vendor } = await supabase.from('vendors').select('id, company_name').eq('user_id', (user?.id || '')).single()
+  const { data: vendorUser } = await supabase.from('vendor_users').select('vendor_id, vendors(id, business_name)').eq('user_id', (user?.id || '')).single();
+  const vendor = vendorUser?.vendors as any;
   if (!vendor) redirect('/dashboard')
 
   // Fetch Commission

@@ -13,7 +13,8 @@ export default async function VendorDashboardPage() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', (user?.id || '')).single()
   if (process.env.DEVELOPMENT_MODE !== 'true' && profile?.role !== 'vendor') redirect('/unauthorized')
 
-  const { data: vendor } = await supabase.from('vendors').select('id, company_name, status').eq('user_id', (user?.id || '')).single()
+  const { data: vendorUser } = await supabase.from('vendor_users').select('vendor_id, vendors(id, business_name, status)').eq('user_id', (user?.id || '')).single();
+  const vendor = vendorUser?.vendors as any;
   
   if (!vendor) {
     return (
@@ -74,7 +75,7 @@ export default async function VendorDashboardPage() {
   return (
     <div className="space-y-6 pb-12">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Welcome, {vendor.company_name}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Welcome, {vendor.business_name}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Overview of your vendor network performance.</p>
       </div>
 

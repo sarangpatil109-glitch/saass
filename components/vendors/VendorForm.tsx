@@ -6,15 +6,34 @@ import { createVendor, updateVendor } from '@/app/actions/vendor'
 import { Card } from '@/components/Card'
 import { Input } from '@/components/Input'
 import { Button } from '@/components/Button'
-import { Loader2, Upload } from 'lucide-react'
+import { Loader2, Upload, Eye, EyeOff, Copy, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 
 export function VendorForm({ initialData }: { initialData?: any }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [generatedPassword, setGeneratedPassword] = useState('')
+  const [createdVendor, setCreatedVendor] = useState<{ code: string, email: string, pass: string } | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const isEdit = !!initialData
+
+  const generatePassword = () => {
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
+    let pass = ''
+    for (let i = 0; i < 12; i++) pass += chars.charAt(Math.floor(Math.random() * chars.length))
+    setGeneratedPassword(pass)
+  }
+
+  const copyCredentials = () => {
+    if (!createdVendor) return
+    const text = `Vendor Code: ${createdVendor.code}\nLogin Email: ${createdVendor.email}\nTemporary Password: ${createdVendor.pass}`
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -29,6 +48,12 @@ export function VendorForm({ initialData }: { initialData?: any }) {
       return
     }
 
+    if (!isEdit && (!formData.get('login_email') || !formData.get('password'))) {
+      setError('Login Email and Password are required to create a vendor account')
+      setLoading(false)
+      return
+    }
+
     const res = isEdit 
       ? await updateVendor(initialData.id, formData)
       : await createVendor(formData)
@@ -37,8 +62,17 @@ export function VendorForm({ initialData }: { initialData?: any }) {
       setError(res.error)
       setLoading(false)
     } else {
-      router.push('/dashboard/vendors')
-      router.refresh()
+      if (!isEdit && res.data) {
+        setCreatedVendor({
+          code: res.data.vendor_code,
+          email: formData.get('login_email') as string,
+          pass: formData.get('password') as string
+        })
+        setLoading(false)
+      } else {
+        router.push('/dashboard/vendors')
+        router.refresh()
+      }
     }
   }
 
@@ -72,15 +106,9 @@ export function VendorForm({ initialData }: { initialData?: any }) {
                 <Input type="tel" name="phone" defaultValue={initialData?.phone} placeholder="+91 9876543210" required />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">GST Number</label>
-                <Input name="gst_number" defaultValue={initialData?.gst_number} placeholder="22AAAAA0000A1Z5" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendor Code</label>
-                <Input name="vendor_code" defaultValue={initialData?.vendor_code} placeholder="Leave empty to auto-generate" />
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendor Code</label>
+              <Input name="vendor_code" defaultValue={initialData?.vendor_code} placeholder="Leave empty to auto-generate" disabled={isEdit} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Logo</label>
@@ -149,7 +177,7 @@ export function VendorForm({ initialData }: { initialData?: any }) {
           </Card>
 
           <Card className="p-6 bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Commission & Coupon</h3>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Commission</h3>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -164,49 +192,46 @@ export function VendorForm({ initialData }: { initialData?: any }) {
                   <Input type="number" step="0.01" name="commission_value" defaultValue={initialData?.commission_value || 0} required />
                 </div>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Coupon Code</label>
-                <Input name="coupon_code" defaultValue={initialData?.coupon_code} placeholder="Leave empty to auto-generate" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Coupon Discount Type</label>
-                  <select name="coupon_discount_type" defaultValue={initialData?.coupon_discount_type || 'percentage'} className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white">
-                    <option value="percentage">Percentage</option>
-                    <option value="fixed">Fixed Amount</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Coupon Discount Value</label>
-                  <Input type="number" step="0.01" name="coupon_discount_value" defaultValue={initialData?.coupon_discount_value || 0} required />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max Coupon Uses (0 for unlimited)</label>
-                  <Input type="number" name="coupon_max_uses" defaultValue={initialData?.coupon_max_uses || 0} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Coupon Expiry Date</label>
-                  <Input type="date" name="coupon_expiry_date" defaultValue={initialData?.coupon_expiry_date ? new Date(initialData.coupon_expiry_date).toISOString().split('T')[0] : ''} />
-                </div>
-              </div>
-
-              {isEdit && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Coupon Status</label>
-                  <select name="coupon_status" defaultValue={initialData?.coupon_status || 'Active'} className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white">
-                    <option value="Active">Active</option>
-                    <option value="Expired">Expired</option>
-                    <option value="Disabled">Disabled</option>
-                  </select>
-                </div>
-              )}
             </div>
           </Card>
+
+          {!isEdit && (
+            <Card className="p-6 bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Vendor Login Credentials</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Login Email *</label>
+                  <Input type="email" name="login_email" placeholder="vendor.login@example.com" required />
+                  <p className="text-xs text-gray-500 mt-1">This email will be used by the vendor to log in to the Vendor Dashboard.</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password *</label>
+                  <div className="relative">
+                    <Input 
+                      type={showPassword ? "text" : "password"} 
+                      name="password" 
+                      placeholder="••••••••" 
+                      required 
+                      minLength={8}
+                      value={generatedPassword}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setGeneratedPassword(e.target.value)}
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-xs text-gray-500">Share this password securely with the vendor. The vendor can change it after first login.</p>
+                    <button type="button" onClick={generatePassword} className="text-xs text-blue-600 hover:underline font-medium">Generate Random</button>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
 
@@ -219,6 +244,48 @@ export function VendorForm({ initialData }: { initialData?: any }) {
           {isEdit ? 'Save Changes' : 'Create Vendor'}
         </Button>
       </div>
+
+      {createdVendor && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <Card className="w-full max-w-md p-6 bg-white dark:bg-gray-900 shadow-xl border border-gray-100 dark:border-gray-800 animate-in fade-in zoom-in duration-200">
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mb-3">
+                <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Vendor Created Successfully</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Please securely share these credentials with the vendor.</p>
+            </div>
+            
+            <div className="space-y-3 bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800 mb-6">
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">Vendor Code</p>
+                <p className="font-mono text-gray-900 dark:text-white font-medium">{createdVendor.code}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">Login Email</p>
+                <p className="text-gray-900 dark:text-white font-medium">{createdVendor.email}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-gray-500 mb-1">Temporary Password</p>
+                <p className="font-mono text-gray-900 dark:text-white font-medium">{createdVendor.pass}</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <Button type="button" onClick={copyCredentials} variant="outline" className="flex-1">
+                {copied ? <CheckCircle2 className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
+                {copied ? 'Copied!' : 'Copy Credentials'}
+              </Button>
+              <Button type="button" onClick={() => {
+                router.push('/dashboard/vendors')
+                router.refresh()
+              }} className="flex-1">
+                Done
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </form>
   )
 }

@@ -44,6 +44,8 @@ async function generateCouponCode() {
   return `GYMOS-${result}`
 }
 
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+
 export async function createVendor(formData: FormData) {
   try {
     const { supabase, user } = await checkAdmin()
@@ -51,43 +53,65 @@ export async function createVendor(formData: FormData) {
     let vendor_code = formData.get('vendor_code') as string
     if (!vendor_code) vendor_code = await generateVendorCode(supabase)
     
-    let coupon_code = formData.get('coupon_code') as string
-    if (!coupon_code) coupon_code = await generateCouponCode()
-
     const logoFile = formData.get('logo') as File | null;
     const logo_url = await uploadFile(supabase, logoFile, `logos/${vendor_code}`);
 
-    const vendor = {
+    let user_id = null;
+    const login_email = formData.get('login_email') as string;
+    const password = formData.get('password') as string;
+
+    if (login_email && password) {
+      const supabaseAdmin = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: login_email,
+        password: password,
+        email_confirm: true,
+        user_metadata: { role: 'vendor' },
+      });
+
+      if (authError) throw new Error(authError.message);
+      user_id = authData.user.id;
+
+      await supabaseAdmin.from('profiles').upsert({
+        id: user_id,
+        email: login_email,
+        role: 'vendor',
+        status: 'active'
+      });
+    }
+
+    const vendor: any = {
       vendor_code,
-      coupon_code,
       business_name: formData.get('business_name'),
       owner_name: formData.get('owner_name'),
       email: formData.get('email'),
       phone: formData.get('phone'),
-      gst_number: formData.get('gst_number'),
       address: formData.get('address'),
       city: formData.get('city'),
       state: formData.get('state'),
       country: formData.get('country') || 'India',
-      pin_code: formData.get('pin_code'),
-      bank_name: formData.get('bank_name'),
-      account_number: formData.get('account_number'),
-      ifsc_code: formData.get('ifsc_code'),
-      upi_id: formData.get('upi_id'),
       notes: formData.get('notes'),
       status: formData.get('status') || 'Active',
       logo_url,
       commission_type: formData.get('commission_type') || 'percentage',
-      commission_value: Number(formData.get('commission_value')) || 0,
-      coupon_discount_type: formData.get('coupon_discount_type') || 'percentage',
-      coupon_discount_value: Number(formData.get('coupon_discount_value')) || 0,
-      coupon_max_uses: Number(formData.get('coupon_max_uses')) || 0,
-      coupon_expiry_date: formData.get('coupon_expiry_date') ? new Date(formData.get('coupon_expiry_date') as string).toISOString() : null,
-      coupon_status: 'Active'
+      commission_value: Number(formData.get('commission_value')) || 0
     }
 
     const { data, error } = await supabase.from('vendors').insert(vendor).select().single()
     if (error) throw error
+
+    // Map the auth user to this vendor in vendor_users
+    if (user_id) {
+      await supabase.from('vendor_users').insert({
+        vendor_id: data.id,
+        user_id: user_id,
+        role: 'vendor_admin'
+      });
+    }
 
     if (user?.id) {
       await supabase.from('vendor_activity_logs').insert({
@@ -116,33 +140,19 @@ export async function updateVendor(id: string, formData: FormData) {
       owner_name: formData.get('owner_name'),
       email: formData.get('email'),
       phone: formData.get('phone'),
-      gst_number: formData.get('gst_number'),
       address: formData.get('address'),
       city: formData.get('city'),
       state: formData.get('state'),
       country: formData.get('country') || 'India',
-      pin_code: formData.get('pin_code'),
-      bank_name: formData.get('bank_name'),
-      account_number: formData.get('account_number'),
-      ifsc_code: formData.get('ifsc_code'),
-      upi_id: formData.get('upi_id'),
       notes: formData.get('notes'),
       status: formData.get('status'),
       commission_type: formData.get('commission_type'),
       commission_value: Number(formData.get('commission_value')) || 0,
-      coupon_discount_type: formData.get('coupon_discount_type'),
-      coupon_discount_value: Number(formData.get('coupon_discount_value')) || 0,
-      coupon_max_uses: Number(formData.get('coupon_max_uses')) || 0,
-      coupon_expiry_date: formData.get('coupon_expiry_date') ? new Date(formData.get('coupon_expiry_date') as string).toISOString() : null,
-      coupon_status: formData.get('coupon_status'),
       updated_at: new Date().toISOString()
     }
 
     const vendor_code = formData.get('vendor_code')
     if (vendor_code) vendor.vendor_code = vendor_code
-
-    const coupon_code = formData.get('coupon_code')
-    if (coupon_code) vendor.coupon_code = coupon_code
 
     if (logoFile && logoFile.size > 0) {
       vendor.logo_url = await uploadFile(supabase, logoFile, `logos/${id}`);
@@ -300,7 +310,8 @@ export async function updateVendorProfile(formData: FormData) {
       updated_at: new Date().toISOString() 
     }
 
-    const { data: currentVendor } = await supabase.from('vendors').select('id, vendor_code').eq('user_id', user.id).single()
+    const { data: vendorUser } = await supabase.from('vendor_users').select('vendor_id, vendors(id, vendor_code)').eq('user_id', user.id).single()
+    const currentVendor = vendorUser?.vendors as any;
     if (!currentVendor) throw new Error('Vendor not found')
 
     const logoFile = formData.get('logo') as File | null;
@@ -308,7 +319,7 @@ export async function updateVendorProfile(formData: FormData) {
       vendor.logo_url = await uploadFile(supabase, logoFile, `logos/${currentVendor.vendor_code}`);
     }
 
-    const { error } = await supabase.from('vendors').update(vendor).eq('user_id', user.id)
+    const { error } = await supabase.from('vendors').update(vendor).eq('id', currentVendor.id)
     if (error) throw error
     revalidatePath('/dashboard/vendor/profile')
     revalidatePath('/vendor/profile')

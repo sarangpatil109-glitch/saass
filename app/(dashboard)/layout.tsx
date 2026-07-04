@@ -14,11 +14,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
       redirect('/login');
     }
 
-    const { data: profile } = await supabase.from('profiles').select('role').eq('id', (user?.id || '')).single();
-    if (!profile || !(profile.role === 'admin' || profile.role === 'vendor' || profile.role === 'sales_executive')) {
+    const { data: profile } = await supabase.from('profiles').select('role, status').eq('id', user.id).single();
+    if (!profile || profile.status === 'suspended' || profile.status === 'inactive') {
       redirect('/login');
     }
+
     userRole = profile.role;
+    
+    // Ensure the user role is authorized for the dashboard layout
+    if (!['admin', 'vendor', 'sales_executive', 'customer'].includes(userRole)) {
+      redirect('/login');
+    }
   }
 
   return (

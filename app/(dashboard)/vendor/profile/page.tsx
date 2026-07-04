@@ -12,7 +12,9 @@ export default async function VendorProfilePage() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', (user?.id || '')).single()
   if (process.env.DEVELOPMENT_MODE !== 'true' && profile?.role !== 'vendor') redirect('/unauthorized')
 
-  const { data: vendorProfile } = await supabase.from('vendors').select('*').eq('user_id', (user?.id || '')).single()
+  const { data: vendorUser } = await supabase.from('vendor_users').select('vendor_id, vendors(*)').eq('user_id', (user?.id || '')).single()
+  const vendorProfile = vendorUser?.vendors as any;
+  
   if (!vendorProfile) {
     return (
       <div className="p-8 text-center text-gray-500">

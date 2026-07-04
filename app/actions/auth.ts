@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 
 export async function login(formData: FormData) {
   const supabase = await createClient()
@@ -22,23 +23,35 @@ export async function login(formData: FormData) {
     return { error: error.message }
   }
 
+  // Fetch the user role to determine where to redirect
   const { data: { user } } = await supabase.auth.getUser()
+  let targetUrl = '/dashboard'
+  
   if (user) {
     const { data: profile } = await supabase.from('profiles').select('role, status').eq('id', user.id).single()
     if (profile?.status === 'suspended' || profile?.status === 'inactive') {
+      await supabase.auth.signOut()
       return { error: 'Your account is inactive or suspended.' }
     }
-    return { success: true, role: profile?.role || 'user' }
+    const role = profile?.role || 'customer'
+    if (role === 'admin') targetUrl = '/dashboard'
+    else if (role === 'vendor') targetUrl = '/vendor/dashboard'
+    else if (role === 'sales_executive') targetUrl = '/sales/dashboard'
+    else targetUrl = '/dashboard'
   }
 
-  return { success: true }
+  // Revalidate layout to ensure fresh data
+  revalidatePath('/', 'layout')
+  
+  // Important: Do the redirect on the server so the browser receives the Set-Cookie headers properly.
+  redirect(targetUrl)
 }
 
 export async function logout() {
   const supabase = await createClient()
   await supabase.auth.signOut()
   revalidatePath('/', 'layout')
-  return { success: true }
+  redirect('/login')
 }
 
 export async function resetPassword(formData: FormData) {

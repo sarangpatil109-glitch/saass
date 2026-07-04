@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/Button'
 import { Edit, Archive, Trash2, RotateCcw, Loader2, RefreshCw } from 'lucide-react'
-import { regenerateCoupon, updateVendorStatus, hardDeleteVendor } from '@/app/actions/vendor'
+import { updateVendorStatus, hardDeleteVendor } from '@/app/actions/vendor'
 import Link from 'next/link'
 
 export function VendorActions({ vendor }: { vendor: any }) {
@@ -14,11 +14,7 @@ export function VendorActions({ vendor }: { vendor: any }) {
   const handleAction = async (actionType: string) => {
     setLoading(actionType)
     try {
-      if (actionType === 'regenerate') {
-        if (confirm('Regenerating the coupon will invalidate the old one. Continue?')) {
-          await regenerateCoupon(vendor.id)
-        }
-      } else if (actionType === 'archive') {
+      if (actionType === 'archive') {
         await updateVendorStatus(vendor.id, 'Archived')
       } else if (actionType === 'restore') {
         await updateVendorStatus(vendor.id, 'Active')
@@ -40,15 +36,6 @@ export function VendorActions({ vendor }: { vendor: any }) {
           <Edit className="h-4 w-4 mr-2" /> Edit
         </Button>
       </Link>
-      <Button 
-        variant="outline" 
-        size="sm" 
-        onClick={() => handleAction('regenerate')}
-        disabled={loading !== ''}
-      >
-        {loading === 'regenerate' ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />} 
-        New Coupon
-      </Button>
 
       {vendor.status !== 'Archived' ? (
         <Button 

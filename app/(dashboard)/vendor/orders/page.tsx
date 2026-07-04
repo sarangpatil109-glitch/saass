@@ -10,7 +10,8 @@ export default async function VendorOrdersPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (process.env.DEVELOPMENT_MODE !== 'true' && !user) redirect('/login')
 
-  const { data: vendor } = await supabase.from('vendors').select('id, status').eq('user_id', (user?.id || '')).single()
+  const { data: vendorUser } = await supabase.from('vendor_users').select('vendor_id, vendors(id, status)').eq('user_id', (user?.id || '')).single();
+  const vendor = vendorUser?.vendors as any;
   
   if (!vendor || vendor.status !== 'Active') {
     redirect('/vendor/dashboard')
