@@ -44,20 +44,11 @@ function LoginForm() {
     
     const res = await login(formData)
     
-    if (res.error) {
+    if (res?.error) {
       setError(res.error)
       setLoading(false)
-    } else {
-      if (res.role === 'admin') {
-        router.push('/admin')
-      } else if (res.role === 'vendor') {
-        router.push('/vendor/dashboard')
-      } else if (res.role === 'sales_executive') {
-        router.push('/sales/dashboard')
-      } else {
-        router.push('/dashboard')
-      }
     }
+    // On success, the server action performs a redirect, so no code below this point will execute.
   }
 
   return (
