@@ -1,63 +1,101 @@
+'use client'
+
 import Link from 'next/link'
-import { Home, Users, Briefcase, DollarSign, Key, Archive, FileText, Settings, Building2, LogOut, Activity } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { 
+  LayoutDashboard, 
+  PackageSearch, 
+  Users, 
+  Store, 
+  Briefcase, 
+  Percent, 
+  FileArchive, 
+  KeyRound, 
+  PieChart, 
+  Settings,
+  LogOut
+} from 'lucide-react'
+import { logout } from '@/app/actions/auth'
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: Home },
-  { name: 'Products', href: '/admin/products', icon: Archive },
-  { name: 'Customers', href: '/admin/customers', icon: Users },
-  { name: 'Vendors', href: '/admin/vendors', icon: Building2 },
-  { name: 'Sales Executives', href: '/admin/sales', icon: Briefcase },
-  { name: 'Commission', href: '/admin/commission', icon: DollarSign },
-  { name: 'ZIP Generator', href: '/admin/zips', icon: FileText },
-  { name: 'License Manager', href: '/admin/licenses', icon: Key },
-  { name: 'Delivery History', href: '/admin/delivery', icon: Archive },
-  { name: 'Reports', href: '/admin/reports', icon: FileText },
-  { name: 'Activity Logs', href: '/admin/logs', icon: Activity },
-  { name: 'Settings', href: '/admin/settings', icon: Settings },
-]
+export function Sidebar({ userRole = 'admin' }: { userRole?: string }) {
+  const pathname = usePathname()
 
-export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (val: boolean) => void }) {
+  let links: any[] = []
+
+  if (userRole === 'admin') {
+    links = [
+      { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+      { name: 'Products', href: '/admin/products', icon: PackageSearch },
+      { name: 'Customers', href: '/admin/crm', icon: Users },
+      { name: 'Vendors', href: '/admin/vendors', icon: Store },
+      { name: 'Sales Executives', href: '/admin/sales', icon: Briefcase },
+      { name: 'Commission', href: '/admin/commission', icon: Percent },
+      { name: 'ZIP Generator', href: '/admin/zips', icon: FileArchive },
+      { name: 'License Manager', href: '/admin/licenses', icon: KeyRound },
+      { name: 'Reports', href: '/admin/reports', icon: PieChart },
+      { name: 'Settings', href: '/admin/settings', icon: Settings },
+    ]
+  } else if (userRole === 'vendor') {
+    links = [
+      { name: 'Dashboard', href: '/vendor/dashboard', icon: LayoutDashboard },
+      { name: 'Team', href: '/vendor/team', icon: Users },
+      { name: 'Sales Executives', href: '/vendor/sales-executives', icon: Briefcase },
+      { name: 'Customers', href: '/vendor/customers', icon: Users },
+      { name: 'Orders', href: '/vendor/orders', icon: PackageSearch },
+      { name: 'Commission', href: '/vendor/commission', icon: Percent },
+      { name: 'Reports', href: '/vendor/reports', icon: PieChart },
+      { name: 'Profile', href: '/vendor/profile', icon: Settings },
+    ]
+  } else if (userRole === 'sales_executive') {
+    links = [
+      { name: 'Dashboard', href: '/sales/dashboard', icon: LayoutDashboard },
+      { name: 'Assigned Leads', href: '/sales/leads', icon: Users },
+      { name: 'Customers', href: '/sales/customers', icon: Store },
+      { name: 'Orders', href: '/sales/orders', icon: PackageSearch },
+      { name: 'Commission', href: '/sales/commission', icon: Percent },
+      { name: 'Follow-ups', href: '/sales/followups', icon: PieChart },
+      { name: 'Profile', href: '/sales/profile', icon: Settings },
+    ]
+  }
+
   return (
-    <>
-      {/* Mobile overlay */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 z-40 bg-gray-900/80 lg:hidden" 
-          onClick={() => setIsOpen(false)}
-        />
-      )}
+    <aside className="w-64 flex flex-col bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all z-20 hidden md:flex h-full fixed top-0 left-0 pt-16">
       
-      <div className={`
-        fixed inset-y-0 left-0 z-50 flex h-full w-64 flex-col bg-gray-900 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0
-        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-      `}>
-        <div className="flex h-16 shrink-0 items-center justify-between px-6">
-          <span className="text-xl font-bold text-white tracking-tight">SaaS Admin</span>
-        </div>
-        <div className="flex flex-1 flex-col overflow-y-auto pt-5 pb-4">
-          <nav className="flex-1 space-y-1 px-3">
-            {navigation.map((item) => (
-              <Link
-                key={item.name}
-                href={item.href}
-                className="group flex items-center rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
-              >
-                <item.icon
-                  className="mr-3 h-5 w-5 flex-shrink-0 text-gray-400 group-hover:text-white"
-                  aria-hidden="true"
-                />
-                {item.name}
-              </Link>
-            ))}
-          </nav>
-        </div>
-        <div className="border-t border-gray-800 p-4">
-          <button className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-gray-300 hover:bg-gray-800 hover:text-white transition-colors">
-            <LogOut className="h-5 w-5 text-gray-400" />
-            Logout
-          </button>
-        </div>
+      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+        {links.map((link) => {
+          const Icon = link.icon
+          const isActive = pathname === link.href || pathname?.startsWith(link.href + '/')
+          
+          return (
+            <Link 
+              key={link.name} 
+              href={link.href}
+              className={`flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isActive 
+                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' 
+                  : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+              }`}
+            >
+              <Icon className={`flex-shrink-0 h-5 w-5 mr-3 ${isActive ? 'text-blue-700 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'}`} />
+              {link.name}
+            </Link>
+          )
+        })}
       </div>
-    </>
+
+      <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+        <button 
+          onClick={async () => {
+            await logout()
+            window.location.href = '/login'
+          }}
+          className="flex items-center w-full px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 transition-colors"
+        >
+          <LogOut className="flex-shrink-0 h-5 w-5 mr-3 text-red-500 dark:text-red-400" />
+          Logout
+        </button>
+      </div>
+
+    </aside>
   )
 }

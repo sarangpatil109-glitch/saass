@@ -10,16 +10,16 @@ import { updateCommissionStatus, updateCommissionSettings } from '@/app/actions/
 
 type Commission = {
   id: string
-  sale_id: string
-  sales_exec_amount: number
-  vendor_amount: number
+  order_id: string
+  sales_commission: number
+  vendor_commission: number
   product_price: number
-  sales_exec_percentage: number
+  sales_percentage: number
   vendor_percentage: number
   status: string
   created_at: string
-  sales_executive: { full_name: string }
-  vendor: { company_name: string }
+  sales_executives?: { full_name: string }
+  vendors?: { company_name: string }
 }
 
 export function CommissionBoardClient({ 
@@ -29,7 +29,7 @@ export function CommissionBoardClient({
 }: { 
   initialCommissions: Commission[], 
   userRole: 'admin' | 'vendor' | 'sales_executive',
-  settings?: { sales_exec_percentage: number, vendor_percentage: number }
+  settings?: { sales_commission_percentage: number, vendor_commission_percentage: number }
 }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -54,19 +54,20 @@ export function CommissionBoardClient({
   }
 
   const exportCSV = () => {
-    const headers = ["Commission ID", "Sale Amount", "Sales Exec", "SE Commission", "Vendor", "Vendor Commission", "Status", "Date"]
+    const headers = ["Commission ID", "Order ID", "Sale Amount", "Sales Exec", "SE Commission", "Vendor", "Vendor Commission", "Status", "Date"]
     const rows = initialCommissions.map(c => [
       c.id,
+      c.order_id,
       c.product_price,
-      c.sales_executive?.full_name,
-      c.sales_exec_amount,
-      c.vendor?.company_name,
-      c.vendor_amount,
+      c.sales_executives?.full_name || 'N/A',
+      c.sales_commission,
+      c.vendors?.company_name || 'N/A',
+      c.vendor_commission,
       c.status,
       new Date(c.created_at).toLocaleDateString()
     ])
     
-    let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n")
+    const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n")
     const encodedUri = encodeURI(csvContent)
     const link = document.createElement("a")
     link.setAttribute("href", encodedUri)
@@ -78,16 +79,17 @@ export function CommissionBoardClient({
 
   const filteredCommissions = initialCommissions.filter(c => {
     const matchesSearch = c.id.toLowerCase().includes(search.toLowerCase()) || 
-                          c.sales_executive?.full_name.toLowerCase().includes(search.toLowerCase()) ||
-                          c.vendor?.company_name.toLowerCase().includes(search.toLowerCase())
+                          c.order_id?.toLowerCase().includes(search.toLowerCase()) ||
+                          c.sales_executives?.full_name?.toLowerCase().includes(search.toLowerCase()) ||
+                          c.vendors?.company_name?.toLowerCase().includes(search.toLowerCase())
     const matchesStatus = statusFilter === 'all' || c.status === statusFilter
     return matchesSearch && matchesStatus
   })
 
   // Basic KPI calc for dashboard
-  const totalEarnings = initialCommissions.reduce((acc, curr) => acc + (userRole === 'vendor' ? curr.vendor_amount : userRole === 'sales_executive' ? curr.sales_exec_amount : (curr.sales_exec_amount + curr.vendor_amount)), 0)
-  const pendingEarnings = initialCommissions.filter(c => c.status === 'Pending').reduce((acc, curr) => acc + (userRole === 'vendor' ? curr.vendor_amount : userRole === 'sales_executive' ? curr.sales_exec_amount : (curr.sales_exec_amount + curr.vendor_amount)), 0)
-  const paidEarnings = initialCommissions.filter(c => c.status === 'Paid').reduce((acc, curr) => acc + (userRole === 'vendor' ? curr.vendor_amount : userRole === 'sales_executive' ? curr.sales_exec_amount : (curr.sales_exec_amount + curr.vendor_amount)), 0)
+  const totalEarnings = initialCommissions.reduce((acc, curr) => acc + (userRole === 'vendor' ? Number(curr.vendor_commission) : userRole === 'sales_executive' ? Number(curr.sales_commission) : (Number(curr.sales_commission) + Number(curr.vendor_commission))), 0)
+  const pendingEarnings = initialCommissions.filter(c => c.status === 'Pending').reduce((acc, curr) => acc + (userRole === 'vendor' ? Number(curr.vendor_commission) : userRole === 'sales_executive' ? Number(curr.sales_commission) : (Number(curr.sales_commission) + Number(curr.vendor_commission))), 0)
+  const paidEarnings = initialCommissions.filter(c => c.status === 'Paid').reduce((acc, curr) => acc + (userRole === 'vendor' ? Number(curr.vendor_commission) : userRole === 'sales_executive' ? Number(curr.sales_commission) : (Number(curr.sales_commission) + Number(curr.vendor_commission))), 0)
 
   return (
     <div className="space-y-6">
@@ -130,7 +132,7 @@ export function CommissionBoardClient({
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
               <Input 
                 type="search" 
-                placeholder="Search ID, Exec, Vendor..." 
+                placeholder="Search ID, Order, Exec, Vendor..." 
                 className="w-full pl-9"
                 value={search}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearch(e.target.value)}
@@ -154,7 +156,7 @@ export function CommissionBoardClient({
               Export CSV
             </Button>
             {userRole === 'admin' && (
-              <Button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-2 bg-slate-900 text-white">
+              <Button onClick={() => setIsSettingsOpen(true)} className="flex items-center gap-2 bg-slate-900 text-white hover:bg-slate-800">
                 <Settings className="h-4 w-4" />
                 Settings
               </Button>
@@ -184,21 +186,21 @@ export function CommissionBoardClient({
                 filteredCommissions.map((comm) => (
                   <tr key={comm.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="font-mono text-gray-900 text-xs truncate max-w-[150px]">{comm.id}</div>
-                      <div className="text-gray-500 text-xs mt-0.5">Sale: ${comm.product_price}</div>
+                      <div className="font-mono text-gray-900 text-xs truncate max-w-[150px]" title={comm.id}>{comm.id}</div>
+                      <div className="text-gray-500 text-xs mt-0.5">Order: {comm.order_id} | Sale: ${comm.product_price}</div>
                     </td>
                     
                     {(userRole === 'admin' || userRole === 'vendor') && (
                       <td className="px-6 py-4">
-                        <div className="font-semibold text-green-700">${comm.sales_exec_amount}</div>
-                        <div className="text-gray-500 text-xs mt-0.5">{comm.sales_executive?.full_name} ({comm.sales_exec_percentage}%)</div>
+                        <div className="font-semibold text-green-700">${Number(comm.sales_commission).toFixed(2)}</div>
+                        <div className="text-gray-500 text-xs mt-0.5">{comm.sales_executives?.full_name} ({comm.sales_percentage}%)</div>
                       </td>
                     )}
                     
                     {(userRole === 'admin' || userRole === 'sales_executive') && (
                       <td className="px-6 py-4">
-                        <div className="font-semibold text-blue-700">${comm.vendor_amount}</div>
-                        <div className="text-gray-500 text-xs mt-0.5">{comm.vendor?.company_name} ({comm.vendor_percentage}% of Exec)</div>
+                        <div className="font-semibold text-blue-700">${Number(comm.vendor_commission).toFixed(2)}</div>
+                        <div className="text-gray-500 text-xs mt-0.5">{comm.vendors?.company_name} ({comm.vendor_percentage}% of Exec)</div>
                       </td>
                     )}
 
@@ -218,7 +220,7 @@ export function CommissionBoardClient({
                         <select 
                           value={comm.status}
                           onChange={(e) => handleStatusChange(comm.id, e.target.value)}
-                          className="text-xs rounded border-gray-300 ml-auto"
+                          className="text-xs rounded border-gray-300 ml-auto bg-white cursor-pointer hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         >
                           <option value="Pending">Pending</option>
                           <option value="Approved">Approve</option>
@@ -247,11 +249,15 @@ export function CommissionBoardClient({
             <form onSubmit={handleSettingsSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Sales Executive % (of Sale)</label>
-                <Input name="sales_exec_percentage" type="number" step="0.01" min="0" max="100" required defaultValue={settings?.sales_exec_percentage || 10} />
+                <Input name="sales_commission_percentage" type="number" step="0.01" min="0" max="100" required defaultValue={settings?.sales_commission_percentage || 10} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Vendor % (of Sales Exec Comm)</label>
-                <Input name="vendor_percentage" type="number" step="0.01" min="0" max="100" required defaultValue={settings?.vendor_percentage || 10} />
+                <Input name="vendor_commission_percentage" type="number" step="0.01" min="0" max="100" required defaultValue={settings?.vendor_commission_percentage || 10} />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Effective From</label>
+                <Input name="effective_from" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
               </div>
               <div className="pt-4 flex justify-end gap-3 border-t">
                 <Button type="button" variant="outline" onClick={() => setIsSettingsOpen(false)}>Cancel</Button>

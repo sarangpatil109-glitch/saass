@@ -17,6 +17,7 @@ export function PaymentBoardClient({ orders, invoices, refunds }: { orders: any[
   // Simulation controls
   const handleSimulatePayment = async (cashfree_order_id: string) => {
     setLoading(true)
+    // eslint-disable-next-line react-hooks/purity
     const transaction_id = `CF_TXN_${Date.now()}`
     const result = await simulateWebhook(cashfree_order_id, transaction_id)
     if (result.error) alert(result.error)
@@ -43,44 +44,84 @@ export function PaymentBoardClient({ orders, invoices, refunds }: { orders: any[
       o.cashfree_order_id?.toLowerCase().includes(search.toLowerCase()) || 
       o.business_name.toLowerCase().includes(search.toLowerCase()) ||
       o.customer?.profiles?.full_name?.toLowerCase().includes(search.toLowerCase())
-    const matchesStatus = statusFilter === 'all' || o.status === statusFilter
+    const matchesStatus = statusFilter === 'all' || o.payment_status === statusFilter
     return matchesSearch && matchesStatus
   })
 
   // Analytics Math
-  const totalRev = orders.filter(o => o.status === 'Success').reduce((acc, curr) => acc + curr.amount, 0)
-  const todayRev = orders.filter(o => o.status === 'Success' && new Date(o.created_at).toDateString() === new Date().toDateString()).reduce((acc, curr) => acc + curr.amount, 0)
+  const totalRev = orders.filter(o => o.payment_status === 'Success').reduce((acc, curr) => acc + curr.amount, 0)
+  const todayRev = orders.filter(o => o.payment_status === 'Success' && new Date(o.created_at).toDateString() === new Date().toDateString()).reduce((acc, curr) => acc + curr.amount, 0)
+  const monthlyRev = orders.filter(o => o.payment_status === 'Success' && new Date(o.created_at).getMonth() === new Date().getMonth() && new Date(o.created_at).getFullYear() === new Date().getFullYear()).reduce((acc, curr) => acc + curr.amount, 0)
+  const successOrders = orders.filter(o => o.payment_status === 'Success')
+  const avgOrderValue = successOrders.length > 0 ? totalRev / successOrders.length : 0
+  
+  // CSV Export
+  const exportCsv = () => {
+    const csvRows = []
+    const headers = ['Order ID', 'Date', 'Business Name', 'Customer Email', 'Product', 'Amount', 'Status']
+    csvRows.push(headers.join(','))
+    
+    for (const ord of filteredOrders) {
+      const values = [
+        ord.cashfree_order_id || ord.id.split('-')[0],
+        new Date(ord.created_at).toISOString(),
+        `"${ord.business_name}"`,
+        ord.customer?.email || '',
+        `"${ord.product?.name || ''}"`,
+        ord.amount,
+        ord.payment_status || ord.status
+      ]
+      csvRows.push(values.join(','))
+    }
+    
+    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.setAttribute('hidden', '')
+    a.setAttribute('href', url)
+    a.setAttribute('download', 'payments_report.csv')
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
 
   return (
     <div className="space-y-6">
       
       {/* Analytics Dashboard */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         <Card className="p-4 bg-white border-green-100 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-500">Total Revenue</span>
-            <IndianRupee className="h-5 w-5 text-green-500" />
+            <span className="text-sm font-medium text-gray-500">Total Rev</span>
+            <IndianRupee className="h-4 w-4 text-green-500" />
           </div>
-          <span className="text-2xl font-bold text-gray-900 mt-2">₹{totalRev.toFixed(2)}</span>
+          <span className="text-xl font-bold text-gray-900 mt-2">₹{totalRev.toFixed(0)}</span>
         </Card>
         <Card className="p-4 bg-white border-blue-100 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-500">Today's Revenue</span>
-            <IndianRupee className="h-5 w-5 text-blue-500" />
+            <span className="text-sm font-medium text-gray-500">Today</span>
+            <IndianRupee className="h-4 w-4 text-blue-500" />
           </div>
-          <span className="text-2xl font-bold text-gray-900 mt-2">₹{todayRev.toFixed(2)}</span>
+          <span className="text-xl font-bold text-gray-900 mt-2">₹{todayRev.toFixed(0)}</span>
+        </Card>
+        <Card className="p-4 bg-white border-purple-100 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-500">Monthly</span>
+            <IndianRupee className="h-4 w-4 text-purple-500" />
+          </div>
+          <span className="text-xl font-bold text-gray-900 mt-2">₹{monthlyRev.toFixed(0)}</span>
         </Card>
         <Card className="p-4 bg-white border-indigo-100 shadow-sm flex flex-col justify-between">
-          <div className="text-sm font-medium text-gray-500">Successful</div>
-          <span className="text-2xl font-bold text-gray-900 mt-2">{orders.filter(o => o.status === 'Success').length}</span>
+          <div className="text-sm font-medium text-gray-500">AOV</div>
+          <span className="text-xl font-bold text-gray-900 mt-2">₹{avgOrderValue.toFixed(0)}</span>
         </Card>
         <Card className="p-4 bg-white border-yellow-100 shadow-sm flex flex-col justify-between">
           <div className="text-sm font-medium text-gray-500">Pending</div>
-          <span className="text-2xl font-bold text-gray-900 mt-2">{orders.filter(o => o.status === 'Pending').length}</span>
+          <span className="text-xl font-bold text-gray-900 mt-2">{orders.filter(o => o.payment_status === 'Pending').length}</span>
         </Card>
         <Card className="p-4 bg-white border-red-100 shadow-sm flex flex-col justify-between">
-          <div className="text-sm font-medium text-gray-500">Refunded / Failed</div>
-          <span className="text-2xl font-bold text-gray-900 mt-2">{orders.filter(o => ['Refunded', 'Failed'].includes(o.status)).length}</span>
+          <div className="text-sm font-medium text-gray-500">Refunds</div>
+          <span className="text-xl font-bold text-gray-900 mt-2">{orders.filter(o => ['Refunded', 'Failed'].includes(o.payment_status)).length}</span>
         </Card>
       </div>
 
@@ -98,13 +139,18 @@ export function PaymentBoardClient({ orders, invoices, refunds }: { orders: any[
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
                   <Input type="search" placeholder="Search orders or business..." className="w-full pl-9" value={search} onChange={(e: any) => setSearch(e.target.value)} />
                 </div>
-                <Select value={statusFilter} onChange={(e: any) => setStatusFilter(e.target.value)}>
-                  <option value="all">All Statuses</option>
-                  <option value="Success">Success</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Refunded">Refunded</option>
-                  <option value="Failed">Failed</option>
-                </Select>
+                <div className="flex space-x-2">
+                  <Select value={statusFilter} onChange={(e: any) => setStatusFilter(e.target.value)}>
+                    <option value="all">All Statuses</option>
+                    <option value="Success">Success</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Refunded">Refunded</option>
+                    <option value="Failed">Failed</option>
+                  </Select>
+                  <Button variant="outline" onClick={exportCsv}>
+                    Export CSV
+                  </Button>
+                </div>
               </div>
             </div>
             
@@ -137,22 +183,22 @@ export function PaymentBoardClient({ orders, invoices, refunds }: { orders: any[
                         </td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full font-medium ${
-                            ord.status === 'Success' ? 'bg-green-100 text-green-700' :
-                            ord.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
+                            ord.payment_status === 'Success' ? 'bg-green-100 text-green-700' :
+                            ord.payment_status === 'Pending' ? 'bg-yellow-100 text-yellow-700' :
                             'bg-red-100 text-red-700'
                           }`}>
-                            {ord.status === 'Success' && <CheckCircle2 className="h-3 w-3" />}
-                            {ord.status === 'Pending' && <Clock className="h-3 w-3" />}
-                            {ord.status}
+                            {ord.payment_status === 'Success' && <CheckCircle2 className="h-3 w-3" />}
+                            {ord.payment_status === 'Pending' && <Clock className="h-3 w-3" />}
+                            {ord.payment_status}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right space-x-2">
-                          {ord.status === 'Pending' && (
+                          {ord.payment_status === 'Pending' && (
                             <Button variant="outline" size="sm" onClick={() => handleSimulatePayment(ord.cashfree_order_id)} disabled={loading} title="Simulate Webhook Payment">
                               <Play className="h-4 w-4 text-green-600 mr-1" /> Mock Pay
                             </Button>
                           )}
-                          {ord.status === 'Success' && (
+                          {ord.payment_status === 'Success' && (
                             <Button variant="outline" size="sm" onClick={() => handleRefund(ord.id, ord.amount)} disabled={loading} title="Record Manual Refund">
                               <RotateCcw className="h-4 w-4 text-red-600 mr-1" /> Refund
                             </Button>

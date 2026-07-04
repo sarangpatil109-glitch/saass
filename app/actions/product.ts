@@ -2,149 +2,212 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { logActivity } from './activity'
+
+async function checkAdmin() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  return { supabase, user }
+}
+
+async function uploadFile(supabase: any, file: File | null, pathPrefix: string): Promise<string | null> {
+  if (!file || file.size === 0) return null;
+  const ext = file.name.split('.').pop();
+  const fileName = `${pathPrefix}-${Date.now()}.${ext}`;
+  const { data, error } = await supabase.storage.from('product_files').upload(fileName, file);
+  if (error) {
+    console.error('Upload error:', error);
+    return null;
+  }
+  const { data: publicData } = supabase.storage.from('product_files').getPublicUrl(data.path);
+  return publicData.publicUrl;
+}
 
 export async function createProduct(formData: FormData) {
-  const supabase = await createClient()
-  
-  const name = formData.get('name') as string
-  const short_description = formData.get('short_description') as string
-  const category_id = formData.get('category_id') as string
-  const price = parseFloat(formData.get('price') as string)
-  
-  // Basic validation
-  if (price < 0) return { error: 'Price must be positive.' }
+  try {
+    const { supabase, user } = await checkAdmin()
+    
+    // Generate slug from name
+    const name = formData.get('name') as string
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '') + '-' + Date.now().toString().slice(-4)
 
-  const { data, error } = await supabase.from('products').insert({
-    name,
-    short_description,
-    category_id,
-    price,
-    status: 'Draft',
-    visibility: 'Hidden'
-  }).select().single()
+    const logoFile = formData.get('logo') as File | null;
+    const zipFile = formData.get('zip_template') as File | null;
 
-  if (error) return { error: error.message }
+    const logo_url = await uploadFile(supabase, logoFile, `logos/${slug}`);
+    const zip_template = await uploadFile(supabase, zipFile, `zips/${slug}`);
 
-  await logActivity('Product Created', { product_id: data.id, name })
-  revalidatePath('/admin/products')
-  
-  return { success: true, id: data.id }
-}
+    const product = {
+      name,
+      slug,
+      description: formData.get('description'),
+      category: formData.get('category'),
+      version: formData.get('version') || 'v1.0.0',
+      price_monthly: Number(formData.get('price_monthly')) || 0,
+      price_yearly: Number(formData.get('price_yearly')) || 0,
+      status: formData.get('status') || 'Draft',
+      logo_url: logo_url || null,
+      zip_template: zip_template || null
+    }
 
-export async function updateProductDetails(id: string, formData: FormData) {
-  const supabase = await createClient()
-  const payload: any = { updated_at: new Date().toISOString() }
+    const { data, error } = await supabase.from('products').insert(product).select().single()
+    if (error) throw error
 
-  if(formData.has('name')) payload.name = formData.get('name')
-  if(formData.has('short_description')) payload.short_description = formData.get('short_description')
-  if(formData.has('full_description')) payload.full_description = formData.get('full_description')
-  if(formData.has('category_id')) payload.category_id = formData.get('category_id')
-  if(formData.has('logo_url')) payload.logo_url = formData.get('logo_url')
-  if(formData.has('banner_url')) payload.banner_url = formData.get('banner_url')
-  
-  const { error } = await supabase.from('products').update(payload).eq('id', id)
-  if (error) return { error: error.message }
+    if (user?.id) {
+      await supabase.from('product_activity_logs').insert({
+        product_id: data.id,
+        action: 'Created',
+        details: 'Product was created',
+        performed_by: user.id
+      })
+    }
 
-  await logActivity('Product Updated', { product_id: id })
-  revalidatePath(`/admin/products/${id}`)
-  return { success: true }
-}
-
-export async function updateProductStatus(id: string, newStatus: string) {
-  const supabase = await createClient()
-  const { error } = await supabase.from('products').update({ status: newStatus, updated_at: new Date().toISOString() }).eq('id', id)
-  if (error) return { error: error.message }
-
-  let action = 'Product Updated'
-  if (newStatus === 'Published') action = 'Product Published'
-  if (newStatus === 'Disabled') action = 'Product Disabled'
-  if (newStatus === 'Archived') action = 'Product Archived'
-
-  await logActivity(action, { product_id: id, status: newStatus })
-  revalidatePath(`/admin/products/${id}`)
-  revalidatePath(`/admin/products`)
-  return { success: true }
-}
-
-export async function updateProductPricing(id: string, price: number, currency: string, is_one_time: boolean) {
-  const supabase = await createClient()
-  if (price < 0) return { error: 'Price must be positive.' }
-
-  const { error } = await supabase.from('products').update({
-    price,
-    currency,
-    is_one_time_payment: is_one_time,
-    updated_at: new Date().toISOString()
-  }).eq('id', id)
-
-  if (error) return { error: error.message }
-
-  await logActivity('Price Changed', { product_id: id, price })
-  revalidatePath(`/admin/products/${id}`)
-  return { success: true }
-}
-
-export async function updateProductDemo(id: string, demo_url: string, demo_status: string) {
-  const supabase = await createClient()
-  
-  // basic URL validation
-  if (demo_url && !demo_url.startsWith('http')) {
-    return { error: 'Demo URL must start with http:// or https://' }
+    revalidatePath('/dashboard/products')
+    return { data, error: null }
+  } catch (error: any) {
+    return { data: null, error: error.message }
   }
-
-  const { error } = await supabase.from('products').update({
-    demo_url,
-    demo_status,
-    updated_at: new Date().toISOString()
-  }).eq('id', id)
-
-  if (error) return { error: error.message }
-
-  await logActivity('Demo Updated', { product_id: id, demo_url })
-  revalidatePath(`/admin/products/${id}`)
-  return { success: true }
 }
 
-export async function createProductVersion(formData: FormData) {
-  const supabase = await createClient()
-  
-  const product_id = formData.get('product_id') as string
-  const major = parseInt(formData.get('major') as string)
-  const minor = parseInt(formData.get('minor') as string)
-  const patch = parseInt(formData.get('patch') as string)
-  const release_notes = formData.get('release_notes') as string
-  const is_stable = formData.get('is_stable') === 'on'
-  
-  const version_string = `${major}.${minor}.${patch}`
+export async function updateProduct(id: string, formData: FormData) {
+  try {
+    const { supabase, user } = await checkAdmin()
 
-  const { data, error } = await supabase.from('product_versions').insert({
-    product_id,
-    version_string,
-    major,
-    minor,
-    patch,
-    release_notes,
-    is_current_stable: is_stable
-  }).select().single()
+    const logoFile = formData.get('logo') as File | null;
+    const zipFile = formData.get('zip_template') as File | null;
 
-  if (error) return { error: error.message }
+    const updates: any = {
+      name: formData.get('name'),
+      description: formData.get('description'),
+      category: formData.get('category'),
+      version: formData.get('version'),
+      price_monthly: Number(formData.get('price_monthly')) || 0,
+      price_yearly: Number(formData.get('price_yearly')) || 0,
+      status: formData.get('status'),
+      updated_at: new Date().toISOString()
+    }
 
-  await logActivity('Version Created', { product_id, version_string })
-  revalidatePath(`/admin/products/${product_id}`)
-  return { success: true }
+    if (logoFile && logoFile.size > 0) {
+      updates.logo_url = await uploadFile(supabase, logoFile, `logos/${id}`);
+    }
+    if (zipFile && zipFile.size > 0) {
+      updates.zip_template = await uploadFile(supabase, zipFile, `zips/${id}`);
+    }
+
+    const { data, error } = await supabase.from('products').update(updates).eq('id', id).select().single()
+    if (error) throw error
+
+    if (user?.id) {
+      await supabase.from('product_activity_logs').insert({
+        product_id: id,
+        action: 'Updated',
+        details: 'Product details were updated',
+        performed_by: user.id
+      })
+    }
+
+    revalidatePath('/dashboard/products')
+    revalidatePath(`/dashboard/products/${id}`)
+    return { data, error: null }
+  } catch (error: any) {
+    return { data: null, error: error.message }
+  }
 }
 
-export async function markVersionStable(versionId: string, productId: string) {
-  const supabase = await createClient()
-  
-  const { data, error } = await supabase.from('product_versions').update({
-    is_current_stable: true
-  }).eq('id', versionId).select().single()
+export async function archiveProduct(id: string) {
+  try {
+    const { supabase, user } = await checkAdmin()
+    const { error } = await supabase.from('products').update({ status: 'Archived' }).eq('id', id)
+    if (error) throw error
 
-  if (error) return { error: error.message }
+    if (user?.id) {
+      await supabase.from('product_activity_logs').insert({
+        product_id: id,
+        action: 'Archived',
+        details: 'Product was archived',
+        performed_by: user.id
+      })
+    }
 
-  await logActivity('Version Updated', { product_id: productId, version_string: data.version_string, note: 'Marked Stable' })
-  revalidatePath(`/admin/products/${productId}`)
-  return { success: true }
+    revalidatePath('/dashboard/products')
+    return { error: null }
+  } catch (error: any) {
+    return { error: error.message }
+  }
+}
+
+export async function restoreProduct(id: string) {
+  try {
+    const { supabase, user } = await checkAdmin()
+    const { error } = await supabase.from('products').update({ status: 'Draft', deleted_at: null }).eq('id', id)
+    if (error) throw error
+
+    if (user?.id) {
+      await supabase.from('product_activity_logs').insert({
+        product_id: id,
+        action: 'Restored',
+        details: 'Product was restored to Draft',
+        performed_by: user.id
+      })
+    }
+
+    revalidatePath('/dashboard/products')
+    return { error: null }
+  } catch (error: any) {
+    return { error: error.message }
+  }
+}
+
+export async function softDeleteProduct(id: string) {
+  return archiveProduct(id);
+}
+
+export async function hardDeleteProduct(id: string) {
+  try {
+    const { supabase } = await checkAdmin()
+    const { error } = await supabase.from('products').delete().eq('id', id)
+    if (error) throw error
+
+    revalidatePath('/dashboard/products')
+    return { error: null }
+  } catch (error: any) {
+    return { error: error.message }
+  }
+}
+
+export async function duplicateProduct(id: string) {
+  try {
+    const { supabase, user } = await checkAdmin()
+    
+    // Fetch existing
+    const { data: existing, error: fetchErr } = await supabase.from('products').select('*').eq('id', id).single()
+    if (fetchErr) throw fetchErr
+
+    const newSlug = existing.slug + '-copy-' + Date.now().toString().slice(-4)
+    
+    // Create new
+    const { id: _, created_at, updated_at, deleted_at, ...productData } = existing
+    
+    const { data, error } = await supabase.from('products').insert({
+      ...productData,
+      name: `${existing.name} (Copy)`,
+      slug: newSlug,
+      status: 'Draft'
+    }).select().single()
+    
+    if (error) throw error
+
+    if (user?.id) {
+      await supabase.from('product_activity_logs').insert({
+        product_id: data.id,
+        action: 'Created',
+        details: `Product duplicated from ${existing.name}`,
+        performed_by: user.id
+      })
+    }
+
+    revalidatePath('/dashboard/products')
+    return { data, error: null }
+  } catch (error: any) {
+    return { data: null, error: error.message }
+  }
 }

@@ -2,9 +2,15 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
+
+  const devMode = process.env.DEVELOPMENT_MODE === 'true';
+
+  // If development mode, skip all auth checks and return response directly
+  if (devMode) {
+    return NextResponse.next({ request });
+  }
+
+  let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,75 +18,75 @@ export async function updateSession(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll()
+          return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
-          })
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value));
+          supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
-          )
+          );
         },
       },
     }
-  )
+  );
 
   // IMPORTANT: Avoid writing any logic between createServerClient and
   // supabase.auth.getUser(). A simple mistake could make it very hard to debug
   // issues with users being randomly logged out.
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser();
 
+  // Redirect unauthenticated users (except login/auth pages and root) to login
   if (
     !user &&
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/auth') &&
     request.nextUrl.pathname !== '/'
   ) {
-    // no user, potentially respond by redirecting the user to the login page
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
   }
-  
-  if (user) {
-    // Check role for protected routes
-    const { data: profile } = await supabase.from('profiles').select('role, status').eq('id', user.id).single()
-    
-    if (profile) {
-        if (profile.status === 'suspended' || profile.status === 'inactive') {
-            return NextResponse.redirect(new URL('/unauthorized', request.url));
-        }
 
-        const path = request.nextUrl.pathname;
-        if (path.startsWith('/admin') && profile.role !== 'admin') {
-            return NextResponse.redirect(new URL('/unauthorized', request.url));
-        }
-        if (path.startsWith('/vendor') && profile.role !== 'vendor' && profile.role !== 'admin') {
-            return NextResponse.redirect(new URL('/unauthorized', request.url));
-        }
-        if (path.startsWith('/sales') && profile.role !== 'sales_executive' && profile.role !== 'admin') {
-            return NextResponse.redirect(new URL('/unauthorized', request.url));
-        }
+  if (user) {
+    // Fetch profile for role and status checks
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, status')
+      .eq('id', user.id)
+      .single();
+
+    if (profile) {
+      if (profile.status === 'suspended' || profile.status === 'inactive') {
+        return NextResponse.redirect(new URL('/unauthorized', request.url));
+      }
+
+      const path = request.nextUrl.pathname;
+      if (path.startsWith('/admin') && profile.role !== 'admin') {
+        return NextResponse.redirect(new URL('/unauthorized', request.url));
+      }
+      if (path.startsWith('/vendor') && profile.role !== 'vendor') {
+        return NextResponse.redirect(new URL('/unauthorized', request.url));
+      }
+      if (path.startsWith('/sales') && profile.role !== 'sales_executive') {
+        return NextResponse.redirect(new URL('/unauthorized', request.url));
+      }
     }
   }
 
-  // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
-  // creating a new response object with NextResponse.next() make sure to:
-  // 1. Pass the request in it, like so:
-  //    const myNewResponse = NextResponse.next({ request })
-  // 2. Copy over the cookies, like so:
-  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-  // 3. Change the myNewResponse object to fit your needs, but avoid changing
-  //    the cookies!
-  // 4. Finally:
-  //    return myNewResponse
-  // If this is not done, you may be causing the browser and server to go out
-  // of sync and terminate the user's session prematurely!
+  // Auto-create profile if missing
+  if (user) {
+    const { data: existingProfile } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .single();
+    if (!existingProfile) {
+      const role = user.email === process.env.DEFAULT_ADMIN_EMAIL ? 'admin' : 'user';
+      await supabase.from('profiles').insert({ id: user.id, role, status: 'active' });
+    }
+  }
 
-  return supabaseResponse
+  return supabaseResponse;
 }

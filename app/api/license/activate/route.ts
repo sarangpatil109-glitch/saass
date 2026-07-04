@@ -1,96 +1,106 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/utils/supabase/server'
+import jwt from 'jsonwebtoken'
+import crypto from 'crypto'
 
-export async function POST(request: Request) {
-  // Use service role key to bypass RLS for API verification since the caller is an unauthenticated software instance
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  const supabase = createClient(supabaseUrl, supabaseKey)
+const JWT_SECRET = process.env.JWT_SECRET || 'saass_offline_signing_key_fallback_do_not_use_in_prod'
 
+export async function POST(req: Request) {
   try {
-    const { license_key, device_id, device_name, os, browser } = await request.json()
+    const body = await req.json()
+    const { license_key, device_id, device_name, os_name, app_version, machine_fingerprint } = body
 
     if (!license_key || !device_id) {
       return NextResponse.json({ error: 'License key and Device ID are required.' }, { status: 400 })
     }
 
-    // 1. Fetch License
-    const { data: license, error: licenseError } = await supabase
-      .from('licenses')
-      .select('id, status, max_activations')
-      .eq('license_key', license_key)
-      .single()
+    const supabase = await createClient()
 
-    if (licenseError || !license) {
+    // 1. Verify License exists and is valid
+    const { data: license } = await supabase.from('licenses').select(`
+      *,
+      license_policies (offline_grace_period_days)
+    `).eq('license_key', license_key).single()
+
+    if (!license) {
       return NextResponse.json({ error: 'Invalid license key.' }, { status: 404 })
     }
 
-    // 2. Validate Status
-    if (['Suspended', 'Revoked', 'Expired'].includes(license.status)) {
-      return NextResponse.json({ error: `License is ${license.status.toLowerCase()}.` }, { status: 403 })
+    if (license.status !== 'Active') {
+      return NextResponse.json({ error: `License is ${license.status}. Activation denied.` }, { status: 403 })
     }
 
-    // 3. Check if device is already registered
-    const { data: existingDevice } = await supabase
-      .from('license_devices')
-      .select('id, is_active')
-      .eq('license_id', license.id)
-      .eq('device_id', device_id)
-      .single()
+    if (license.expiry_date && new Date(license.expiry_date) < new Date()) {
+      await supabase.from('licenses').update({ status: 'Expired' }).eq('id', license.id)
+      return NextResponse.json({ error: 'License has expired.' }, { status: 403 })
+    }
 
-    if (existingDevice) {
-      if (!existingDevice.is_active) {
-        return NextResponse.json({ error: 'This device has been deactivated by the administrator.' }, { status: 403 })
+    // 2. Check if device is already registered
+    let { data: device } = await supabase.from('license_devices').select('*').eq('license_id', license.id).eq('device_id', device_id).single()
+
+    if (!device) {
+      // 3. Verify Activation Limit
+      if (license.current_activations >= license.activation_limit) {
+        return NextResponse.json({ error: 'Maximum activation limit reached for this license.' }, { status: 403 })
       }
-      
-      // Update last active
-      await supabase.from('license_devices').update({ last_active: new Date().toISOString() }).eq('id', existingDevice.id)
-      await supabase.from('license_history').insert({ license_id: license.id, action: 'Reactivation', device_id, ip_address: request.headers.get('x-forwarded-for') || 'Unknown' })
-      
-      // If the license was Pending, mark it Active since a device just reactivated (edge case, but safe)
-      if (license.status === 'Pending') {
-        await supabase.from('licenses').update({ status: 'Active' }).eq('id', license.id)
+
+      // 4. Register Device
+      const { data: newDevice, error: devErr } = await supabase.from('license_devices').insert({
+        license_id: license.id,
+        device_id,
+        device_name,
+        os_name,
+        app_version,
+        machine_fingerprint: machine_fingerprint || device_id
+      }).select().single()
+
+      if (devErr) throw devErr
+      device = newDevice
+
+      // Increment activations
+      await supabase.from('licenses').update({ current_activations: license.current_activations + 1 }).eq('id', license.id)
+    } else {
+      if (device.status !== 'Active') {
+         return NextResponse.json({ error: 'Device has been deactivated or blocked by admin.' }, { status: 403 })
       }
-      
-      return NextResponse.json({ success: true, message: 'Device reactivated successfully.' })
+      // Update last seen
+      await supabase.from('license_devices').update({ last_seen: new Date().toISOString() }).eq('id', device.id)
     }
 
-    // 4. Device is not registered, check activation limits
-    const { count } = await supabase
-      .from('license_devices')
-      .select('*', { count: 'exact', head: true })
-      .eq('license_id', license.id)
-      .eq('is_active', true)
-
-    if (count !== null && count >= license.max_activations) {
-      return NextResponse.json({ error: 'Maximum activation limit reached for this license.' }, { status: 403 })
-    }
-
-    // 5. Register Device
-    await supabase.from('license_devices').insert({
-      license_id: license.id,
-      device_id,
-      device_name: device_name || 'Unknown Device',
-      os: os || 'Unknown',
-      browser: browser || 'Unknown'
-    })
-
-    // 6. Update License Status to Active if it was Pending
-    if (license.status === 'Pending') {
-      await supabase.from('licenses').update({ status: 'Active' }).eq('id', license.id)
-    }
-
-    // 7. Log History
-    await supabase.from('license_history').insert({ 
-      license_id: license.id, 
-      action: 'Activation', 
-      device_id, 
-      ip_address: request.headers.get('x-forwarded-for') || 'Unknown' 
-    })
-
-    return NextResponse.json({ success: true, message: 'Software activated successfully.' })
+    // 5. Generate Offline Token
+    const policy = Array.isArray(license.license_policies) ? license.license_policies[0] : license.license_policies;
     
+    const offlineTokenPayload = {
+      lic: license_key,
+      dev: device_id,
+      exp: Math.floor(Date.now() / 1000) + ((policy?.offline_grace_period_days || 7) * 24 * 60 * 60)
+    }
+
+    const token = jwt.sign(offlineTokenPayload, JWT_SECRET)
+
+    // 6. Record Activation Event
+    await supabase.from('license_activations').insert({
+      license_id: license.id,
+      device_id: device.id,
+      ip_address: req.headers.get('x-forwarded-for') || 'Unknown',
+      activation_token: crypto.createHash('sha256').update(token).digest('hex') // Store hash for tracking
+    })
+
+    await supabase.from('license_activity_logs').insert({
+      action: 'Device Activated',
+      remarks: `Device ${device_id} activated successfully.`,
+      license_id: license.id,
+      device_id: device.id
+    })
+
+    return NextResponse.json({ 
+      success: true, 
+      offline_token: token,
+      message: 'Activation successful.'
+    })
+
   } catch (error: any) {
-    return NextResponse.json({ error: 'Internal Server Error', details: error.message }, { status: 500 })
+    console.error('Activation Error:', error)
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
