@@ -24,11 +24,16 @@ export async function registerSalesExecutive(state: any, formData: FormData) {
   }
 
   // Verify Coupon Code
+  const normalizedCouponCode = couponCode.trim();
+  console.log(`[Registration] Attempting to verify coupon code: "${normalizedCouponCode}"`);
+
   const { data: vendor, error: vendorError } = await supabase
     .from('vendors')
     .select('id, status')
-    .eq('coupon_code', couponCode)
-    .single()
+    .ilike('coupon_code', normalizedCouponCode)
+    .maybeSingle()
+
+  console.log(`[Registration] Database result for coupon "${normalizedCouponCode}":`, { vendor, vendorError });
 
   if (vendorError || !vendor) {
     return { error: 'Invalid coupon code.' }

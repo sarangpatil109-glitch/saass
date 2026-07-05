@@ -43,11 +43,48 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // Redirect authenticated users away from login pages
-  if (user && isAuthRoute && !pathname.startsWith('/auth')) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard' // Layouts handle exact role routing
-    return NextResponse.redirect(url)
+  // Role-based routing for authenticated users
+  if (user) {
+    // 1. Fetch user role from profile
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    const userRole = profile?.role || user.user_metadata?.role || 'customer'
+    
+    // 2. Prevent accessing login/register routes if authenticated
+    if (isAuthRoute && !pathname.startsWith('/auth')) {
+      const url = request.nextUrl.clone()
+      if (userRole === 'admin') url.pathname = '/dashboard'
+      else if (userRole === 'vendor') url.pathname = '/vendor/dashboard'
+      else if (userRole === 'sales_executive') url.pathname = '/sales/dashboard'
+      else url.pathname = '/'
+      return NextResponse.redirect(url)
+    }
+
+    // 3. Enforce access control for vendor routes
+    if (pathname.startsWith('/vendor') && userRole !== 'vendor') {
+      const url = request.nextUrl.clone()
+      url.pathname = userRole === 'admin' ? '/dashboard' : (userRole === 'sales_executive' ? '/sales/dashboard' : '/')
+      return NextResponse.redirect(url)
+    }
+
+    // 4. Enforce access control for sales routes
+    if (pathname.startsWith('/sales') && userRole !== 'sales_executive') {
+      const url = request.nextUrl.clone()
+      url.pathname = userRole === 'admin' ? '/dashboard' : (userRole === 'vendor' ? '/vendor/dashboard' : '/')
+      return NextResponse.redirect(url)
+    }
+
+    // 5. Enforce access control for admin dashboard
+    // Admin dashboard routes usually start with /dashboard, /admin, etc.
+    // Wait, vendor dashboard is /vendor/dashboard, sales is /sales/dashboard.
+    // We should strictly prevent vendor/sales from accessing /dashboard, /admin.
+    if ((pathname === '/dashboard' || pathname.startsWith('/dashboard/') || pathname.startsWith('/admin')) 
+        && userRole !== 'admin') {
+      const url = request.nextUrl.clone()
+      if (userRole === 'vendor') url.pathname = '/vendor/dashboard'
+      else if (userRole === 'sales_executive') url.pathname = '/sales/dashboard'
+      else url.pathname = '/'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse

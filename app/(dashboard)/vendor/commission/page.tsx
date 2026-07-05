@@ -12,7 +12,7 @@ export default async function VendorWalletPage() {
 
   const { data: vendorUser } = await supabase.from('vendor_users').select('vendor_id, vendors(id, business_name)').eq('user_id', (user?.id || '')).single();
   const vendor = vendorUser?.vendors as any;
-  if (!vendor) redirect('/dashboard')
+  if (!vendor) redirect('/')
 
   // Fetch Commission
   const { data: commissions } = await supabase.from('commission_transactions').select('*').eq('vendor_id', vendor.id).eq('recipient_type', 'vendor').order('created_at', { ascending: false })

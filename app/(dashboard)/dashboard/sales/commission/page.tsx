@@ -14,7 +14,7 @@ export default async function SalesExecWalletPage() {
   if (process.env.DEVELOPMENT_MODE !== 'true' && profile?.role !== 'sales') redirect('/unauthorized')
 
   const { data: exec } = await supabase.from('sales_executives').select('id, full_name').eq('user_id', (user?.id || '')).single()
-  if (!exec) redirect('/dashboard')
+  if (!exec) redirect('/')
 
   // Fetch Wallet
   const { data: wallet } = await supabase.from('commission_wallets').select('*').eq('user_type', 'Sales Executive').eq('user_id', exec.id).single()
