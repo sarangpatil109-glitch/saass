@@ -4,11 +4,12 @@ import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
-export async function login(formData: FormData) {
+export async function login(state: any, formData: FormData) {
   const supabase = await createClient()
 
   const email = formData.get('email') as string
   const password = formData.get('password') as string
+  const expectedRole = formData.get('expected_role') as string
 
   if (!email || !password) {
     return { error: 'Email and password are required' }
@@ -33,11 +34,19 @@ export async function login(formData: FormData) {
       await supabase.auth.signOut()
       return { error: 'Your account is inactive or suspended.' }
     }
+    
     const role = profile?.role || 'customer'
+    
+    // Strict role check
+    if (expectedRole && expectedRole !== role) {
+      await supabase.auth.signOut()
+      return { error: 'Invalid role for this login portal.' }
+    }
+
     if (role === 'admin') targetUrl = '/dashboard'
     else if (role === 'vendor') targetUrl = '/vendor/dashboard'
     else if (role === 'sales_executive') targetUrl = '/sales/dashboard'
-    else targetUrl = '/dashboard'
+    else targetUrl = '/'
   }
 
   // Revalidate layout to ensure fresh data

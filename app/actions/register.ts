@@ -4,7 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import crypto from 'crypto'
 
-export async function registerSalesExecutive(formData: FormData) {
+export async function registerSalesExecutive(state: any, formData: FormData) {
   const supabase = await createClient()
 
   const firstName = formData.get('first_name') as string
