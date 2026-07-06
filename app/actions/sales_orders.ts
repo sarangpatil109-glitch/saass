@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { sendActivationEmail } from '@/lib/email/resend'
 
 async function checkAuth() {
   const supabase = await createClient()
@@ -226,6 +227,15 @@ export async function approveOrder(orderId: string) {
     }
 
     console.log('STEP 5 finished')
+
+    // Send the activation email
+    if (request.customer_email) {
+      await sendActivationEmail(
+        request.customer_email,
+        request.customer_name,
+        request.products?.name || 'GymOS'
+      )
+    }
 
     // Revalidate ALL layout boundaries to ensure realtime UI updates without page refresh
     revalidatePath('/', 'layout')

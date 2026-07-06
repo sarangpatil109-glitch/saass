@@ -4,6 +4,7 @@ import { DateRangeFilter } from '@/components/shared/date-range-filter'
 import { applyDateFilter } from '@/lib/date-filter'
 import { Card } from '@/components/Card'
 import { Shield, Bell, Database, Key } from 'lucide-react'
+import { EmailSettingsClient } from '@/components/admin/settings/EmailSettingsClient'
 
 export default async function SettingsPage(props: { searchParams: Promise<any> }) {
   const searchParams = await props.searchParams;
@@ -95,6 +96,9 @@ export default async function SettingsPage(props: { searchParams: Promise<any> }
           </div>
         </Card>
       )}
+
+      {/* Email Settings */}
+      <EmailSettingsClient />
 
       {/* Environment */}
       <Card className="p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm">
