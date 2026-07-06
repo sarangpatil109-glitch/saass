@@ -1,10 +1,13 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { Card } from '@/components/Card'
 import Link from 'next/link'
 import { ShoppingCart, CheckCircle2, Clock, XCircle, IndianRupee } from 'lucide-react'
 
-export default async function AdminOrdersPage() {
+export default async function AdminOrdersPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -15,7 +18,7 @@ export default async function AdminOrdersPage() {
 
   const { data: orders } = await supabase
     .from('orders')
-    .select(`*, customers (business_name, email), products (name)`)
+    .select(`*`)
     .order('created_at', { ascending: false })
 
   const allOrders = orders || []
@@ -29,9 +32,11 @@ export default async function AdminOrdersPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Orders</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">All orders from Cashfree checkout.</p>
+      </div>
+        <DateRangeFilter />
       </div>
 
       {/* KPI Cards */}
@@ -64,7 +69,7 @@ export default async function AdminOrdersPage() {
             <thead className="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
               <tr>
                 <th className="px-6 py-4">Order No.</th>
-                <th className="px-6 py-4">Customer / Business</th>
+                <th className="px-6 py-4">Customer</th>
                 <th className="px-6 py-4">Product</th>
                 <th className="px-6 py-4">Amount</th>
                 <th className="px-6 py-4">Status</th>
@@ -83,12 +88,12 @@ export default async function AdminOrdersPage() {
                       </Link>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-medium text-gray-900 dark:text-white">{customer?.business_name || 'N/A'}</div>
-                      <div className="text-xs text-gray-500">{customer?.email}</div>
+                      <div className="font-medium text-gray-900 dark:text-white">{order.customer_name || 'N/A'}</div>
+                      <div className="text-xs text-gray-500">{order.customer_email || 'No email'}</div>
                     </td>
-                    <td className="px-6 py-4 text-gray-700 dark:text-gray-300">{product?.name || '—'}</td>
+                    <td className="px-6 py-4 text-gray-700 dark:text-gray-300">{order.product_name || 'Unknown Product'}</td>
                     <td className="px-6 py-4 font-semibold text-gray-900 dark:text-white">
-                      ₹{Number(order.final_amount).toFixed(2)}
+                      ₹{Number(order.product_price || 0).toFixed(2)}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${

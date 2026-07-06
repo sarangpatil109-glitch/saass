@@ -1,10 +1,13 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { SalesExecutiveForm } from '@/components/sales/SalesExecutiveForm'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
-export default async function NewSalesExecutivePage() {
+export default async function NewSalesExecutivePage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   // Protect route
@@ -14,7 +17,7 @@ export default async function NewSalesExecutivePage() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', (user?.id || '')).single()
   if (process.env.DEVELOPMENT_MODE !== 'true' && profile?.role !== 'admin') redirect('/unauthorized')
 
-  const { data: vendors } = await supabase.from('vendors').select('id, company_name, vendor_code').is('deleted_at', null).order('company_name')
+  const { data: vendors } = await applyDateFilter(supabase.from('vendors').select('id, business_name, vendor_code'), searchParams).is('deleted_at', null).order('business_name')
 
   return (
     <div className="space-y-6 pb-12">

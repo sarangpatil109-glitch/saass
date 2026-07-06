@@ -22,7 +22,7 @@ type Lead = {
   assigned_vendor_id?: string
   assigned_sales_executive_id?: string
   sales_executives?: { full_name: string }
-  vendors?: { company_name: string }
+  vendors?: { business_name: string }
 }
 
 const STAGES = [
@@ -51,11 +51,11 @@ export function LeadBoardClient({
   }
 
   const filteredLeads = initialLeads.filter(l => {
-    const matchesSearch = l.business_name?.toLowerCase().includes(search.toLowerCase()) || 
-                          l.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
-                          l.lead_number?.toLowerCase().includes(search.toLowerCase()) ||
+    const matchesSearch = (l.business_name || '').toLowerCase().includes(search.toLowerCase()) || 
+                          (l.customer_name || '').toLowerCase().includes(search.toLowerCase()) ||
+                          (l.lead_number || '').toLowerCase().includes(search.toLowerCase()) ||
                           l.phone?.includes(search) ||
-                          l.email?.toLowerCase().includes(search.toLowerCase())
+                          (l.email || '').toLowerCase().includes(search.toLowerCase())
     const matchesStage = stageFilter === 'all' || l.pipeline_stage === stageFilter
     return matchesSearch && matchesStage
   })
@@ -141,8 +141,8 @@ export function LeadBoardClient({
                     {(userRole === 'admin' || userRole === 'vendor') && (
                       <td className="px-6 py-4 text-gray-600">
                         {lead.sales_executives?.full_name || 'Unassigned'}
-                        {lead.vendors?.company_name && (
-                          <div className="text-xs text-gray-400 mt-0.5">{lead.vendors.company_name}</div>
+                        {lead.vendors?.business_name && (
+                          <div className="text-xs text-gray-400 mt-0.5">{lead.vendors.business_name}</div>
                         )}
                       </td>
                     )}

@@ -41,9 +41,9 @@ export function PaymentBoardClient({ orders, invoices, refunds }: { orders: any[
 
   const filteredOrders = orders.filter(o => {
     const matchesSearch = 
-      o.cashfree_order_id?.toLowerCase().includes(search.toLowerCase()) || 
-      o.business_name.toLowerCase().includes(search.toLowerCase()) ||
-      o.customer?.profiles?.full_name?.toLowerCase().includes(search.toLowerCase())
+      (o.cashfree_order_id || '').toLowerCase().includes(search.toLowerCase()) || 
+      (o.business_name || '').toLowerCase().includes(search.toLowerCase()) ||
+      (o.customer?.profiles?.full_name || '').toLowerCase().includes(search.toLowerCase())
     const matchesStatus = statusFilter === 'all' || o.payment_status === statusFilter
     return matchesSearch && matchesStatus
   })
@@ -63,7 +63,7 @@ export function PaymentBoardClient({ orders, invoices, refunds }: { orders: any[
     
     for (const ord of filteredOrders) {
       const values = [
-        ord.cashfree_order_id || ord.id.split('-')[0],
+        ord.cashfree_order_id || (ord.id || '').split('-')[0],
         new Date(ord.created_at).toISOString(),
         `"${ord.business_name}"`,
         ord.customer?.email || '',
@@ -170,7 +170,7 @@ export function PaymentBoardClient({ orders, invoices, refunds }: { orders: any[
                     filteredOrders.map((ord) => (
                       <tr key={ord.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4">
-                          <div className="font-mono text-xs text-gray-900 truncate max-w-[150px]">{ord.cashfree_order_id || ord.id.split('-')[0]}</div>
+                          <div className="font-mono text-xs text-gray-900 truncate max-w-[150px]">{ord.cashfree_order_id || (ord.id || '').split('-')[0]}</div>
                           <div className="text-gray-500 text-xs mt-1">{new Date(ord.created_at).toLocaleString()}</div>
                         </td>
                         <td className="px-6 py-4">

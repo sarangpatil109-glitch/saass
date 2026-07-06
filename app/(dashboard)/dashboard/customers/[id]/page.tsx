@@ -4,7 +4,8 @@ import { Card } from '@/components/Card'
 import { ArrowLeft, User, Phone, Mail, MapPin, Building, Key, Archive, ShoppingCart } from 'lucide-react'
 import Link from 'next/link'
 
-export default async function CustomerProfilePage({ params }: { params: { id: string } }) {
+export default async function (props: { params: Promise<any> }) {
+  const params = await props.params;
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
@@ -47,10 +48,12 @@ export default async function CustomerProfilePage({ params }: { params: { id: st
           <ArrowLeft className="h-4 w-4 mr-1" /> Back to Customers
         </Link>
         <div className="flex items-center justify-between">
-          <div>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{customer.business_name || customer.customer_name}</h1>
             <p className="text-sm text-gray-500 font-mono mt-1">{customer.customer_code}</p>
           </div>
+        
+      </div>
           <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
             customer.status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
           }`}>

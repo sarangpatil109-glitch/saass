@@ -23,13 +23,19 @@ export function SalesExecutiveForm({ initialData, vendors = [] }: { initialData?
 
     const formData = new FormData(e.currentTarget)
     
-    if (!formData.get('first_name') || !formData.get('last_name') || !formData.get('email') || !formData.get('phone')) {
-      setError('Name, Email, and Phone are required')
+    if (!formData.get('first_name') || !formData.get('last_name') || !formData.get('email') || !formData.get('phone') || !formData.get('vendor_name')) {
+      setError('Name, Email, Phone, and Vendor Name are required')
       setLoading(false)
       return
     }
     
     const commission = Number(formData.get('commission_percentage') || 0);
+    const vendorName = (formData.get('vendor_name') as string) || '';
+    if (vendorName.length < 2 || vendorName.length > 100) {
+      setError('Vendor Name must be between 2 and 100 characters')
+      setLoading(false)
+      return
+    }
     const target = Number(formData.get('monthly_target') || 0);
     if (commission < 0) {
       setError('Commission must be >= 0')
@@ -98,7 +104,7 @@ export function SalesExecutiveForm({ initialData, vendors = [] }: { initialData?
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Employee Code</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Employee ID</label>
                   <Input name="employee_code" defaultValue={initialData?.employee_code} placeholder="Leave blank to auto-generate" />
                 </div>
                 <div>
@@ -142,6 +148,8 @@ export function SalesExecutiveForm({ initialData, vendors = [] }: { initialData?
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Commission %</label>
                   <Input type="number" name="commission_percentage" defaultValue={initialData?.commission_percentage || 10} min="0" max="100" step="0.01" />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendor Name *</label>
+                  <Input name="vendor_name" defaultValue={initialData?.vendor_name} placeholder="Enter Vendor Name" required minLength={2} maxLength={100} />
                 </div>
               </div>
               <div>
@@ -155,29 +163,18 @@ export function SalesExecutiveForm({ initialData, vendors = [] }: { initialData?
         <div className="space-y-6">
           <Card className="p-6 bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Vendor Assignment</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">A Sales Executive MUST be mapped to a Vendor. Use either method below.</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Select the vendor to assign this Sales Executive to.</p>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Method 1: Select Vendor (Manual)</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Select Vendor</label>
                 <select name="vendor_id" defaultValue={initialData?.vendor_id || ''} className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white">
                   <option value="">-- Select a Vendor --</option>
                   {vendors.map(v => (
-                    <option key={v.id} value={v.id}>{v.company_name} ({v.vendor_code})</option>
+                    <option key={v.id} value={v.id}>{v.business_name} ({v.vendor_code})</option>
                   ))}
                 </select>
               </div>
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                  <div className="w-full border-t border-gray-200 dark:border-gray-800" />
-                </div>
-                <div className="relative flex justify-center">
-                  <span className="bg-white dark:bg-gray-900 px-2 text-xs text-gray-500 uppercase tracking-wider">OR</span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Method 2: Vendor Coupon Code</label>
-                <Input name="coupon_code" defaultValue={initialData?.vendor_coupon_code || ''} placeholder="e.g. GYMOS-AB12CD" />
-              </div>
+
               {isEdit && (
                 <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm text-blue-700 dark:text-blue-400">
                   Currently mapped to: <span className="font-mono font-bold">{initialData.vendor_code}</span>

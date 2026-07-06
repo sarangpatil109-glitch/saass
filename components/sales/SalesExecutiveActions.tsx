@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/Button'
-import { Edit, Archive, Trash2, RotateCcw, Loader2 } from 'lucide-react'
+import { Edit, Archive, Trash2, RotateCcw, Loader2, CheckCircle } from 'lucide-react'
 import { updateSalesStatus, hardDeleteSalesExecutive } from '@/app/actions/sales'
 import Link from 'next/link'
 
@@ -16,7 +16,7 @@ export function SalesExecutiveActions({ exec }: { exec: any }) {
     try {
       if (actionType === 'archive') {
         await updateSalesStatus(exec.id, 'Archived')
-      } else if (actionType === 'restore') {
+      } else if (actionType === 'restore' || actionType === 'approve') {
         await updateSalesStatus(exec.id, 'Active')
       } else if (actionType === 'delete') {
         if (confirm('Are you sure you want to permanently delete this sales executive? This cannot be undone.')) {
@@ -36,6 +36,19 @@ export function SalesExecutiveActions({ exec }: { exec: any }) {
           <Edit className="h-4 w-4 mr-2" /> Edit
         </Button>
       </Link>
+
+      {exec.status === 'pending' && (
+        <Button 
+          variant="outline" 
+          size="sm"
+          className="text-green-600 hover:text-green-700 hover:bg-green-50 border-green-200"
+          onClick={() => handleAction('approve')}
+          disabled={loading !== ''}
+        >
+          {loading === 'approve' ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />} 
+          Approve
+        </Button>
+      )}
 
       {exec.status !== 'Archived' ? (
         <Button 

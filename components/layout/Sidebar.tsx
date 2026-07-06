@@ -13,7 +13,8 @@ import {
   KeyRound, 
   PieChart, 
   Settings,
-  LogOut
+  LogOut,
+  Banknote
 } from 'lucide-react'
 import { logout } from '@/app/actions/auth'
 
@@ -24,27 +25,27 @@ export function Sidebar({ userRole = 'admin' }: { userRole?: string }) {
 
   if (userRole === 'admin') {
     links = [
-      { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
-      { name: 'Products', href: '/admin/products', icon: PackageSearch },
-      { name: 'Customers', href: '/admin/crm', icon: Users },
-      { name: 'Vendors', href: '/admin/vendors', icon: Store },
-      { name: 'Sales Executives', href: '/admin/sales', icon: Briefcase },
-      { name: 'Commission', href: '/admin/commission', icon: Percent },
-      { name: 'ZIP Generator', href: '/admin/zips', icon: FileArchive },
-      { name: 'License Manager', href: '/admin/licenses', icon: KeyRound },
+      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { name: 'Sales Requests', href: '/admin/sales-requests', icon: PackageSearch },
+      { name: 'Commissions', href: '/admin/commissions', icon: Percent },
+      { name: 'Commission Payouts', href: '/admin/commission-payouts', icon: Banknote },
+      { name: 'Products', href: '/dashboard/products', icon: PackageSearch },
+      { name: 'Customers', href: '/dashboard/customers', icon: Users },
+      { name: 'Vendors', href: '/dashboard/vendors', icon: Store },
+      { name: 'Sales Executives', href: '/dashboard/sales-executives', icon: Briefcase },
       { name: 'Reports', href: '/admin/reports', icon: PieChart },
       { name: 'Settings', href: '/admin/settings', icon: Settings },
     ]
   } else if (userRole === 'vendor') {
     links = [
       { name: 'Dashboard', href: '/vendor/dashboard', icon: LayoutDashboard },
-      { name: 'Team', href: '/vendor/team', icon: Users },
-      { name: 'Sales Executives', href: '/vendor/sales-executives', icon: Briefcase },
-      { name: 'Customers', href: '/vendor/customers', icon: Users },
+      { name: 'Sales Executives', href: '/vendor/team', icon: Briefcase },
+      { name: 'Leads', href: '/vendor/leads', icon: Users },
       { name: 'Orders', href: '/vendor/orders', icon: PackageSearch },
       { name: 'Commission', href: '/vendor/commission', icon: Percent },
       { name: 'Reports', href: '/vendor/reports', icon: PieChart },
       { name: 'Profile', href: '/vendor/profile', icon: Settings },
+      { name: 'Settings', href: '/vendor/settings', icon: Settings },
     ]
   } else if (userRole === 'sales_executive') {
     links = [
@@ -87,7 +88,7 @@ export function Sidebar({ userRole = 'admin' }: { userRole?: string }) {
         <button 
           onClick={async () => {
             await logout()
-            window.location.href = '/login'
+            window.location.href = '/'
           }}
           className="flex items-center w-full px-3 py-2.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30 transition-colors"
         >

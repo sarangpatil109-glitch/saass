@@ -3,19 +3,20 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import crypto from 'crypto'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { redirect } from 'next/navigation'
 
-export async function registerSalesExecutive(state: any, formData: FormData) {
+export async function registerSalesExecutive(state: any, formData: FormData): Promise<{ error?: string; success?: boolean }> {
   const supabase = await createClient()
 
   const firstName = formData.get('first_name') as string
   const lastName = formData.get('last_name') as string
   const email = formData.get('email') as string
   const phone = formData.get('phone') as string
+  const vendorName = formData.get('vendor_name') as string
   const password = formData.get('password') as string
   const confirmPassword = formData.get('confirm_password') as string
-  const couponCode = formData.get('coupon_code') as string
-
-  if (!firstName || !lastName || !email || !phone || !password || !couponCode) {
+  if (!firstName || !lastName || !email || !phone || !vendorName || !password) {
     return { error: 'All fields are required.' }
   }
 
@@ -23,35 +24,19 @@ export async function registerSalesExecutive(state: any, formData: FormData) {
     return { error: 'Passwords do not match.' }
   }
 
-  // Verify Coupon Code
-  const normalizedCouponCode = couponCode.trim();
-  console.log(`[Registration] Attempting to verify coupon code: "${normalizedCouponCode}"`);
+  const supabaseAdmin = createSupabaseClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
-  const { data: vendor, error: vendorError } = await supabase
-    .from('vendors')
-    .select('id, status')
-    .ilike('coupon_code', normalizedCouponCode)
-    .maybeSingle()
-
-  console.log(`[Registration] Database result for coupon "${normalizedCouponCode}":`, { vendor, vendorError });
-
-  if (vendorError || !vendor) {
-    return { error: 'Invalid coupon code.' }
-  }
-
-  if (vendor.status !== 'Active') {
-    return { error: 'This vendor account is not active.' }
-  }
-
-  // Create User in Supabase Auth
-  const { data: authData, error: authError } = await supabase.auth.signUp({
+  // Create User via Admin API to bypass rate limits and email verification
+  const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
     email,
     password,
-    options: {
-      data: {
-        first_name: firstName,
-        last_name: lastName,
-      }
+    email_confirm: true,
+    user_metadata: {
+      first_name: firstName,
+      last_name: lastName,
     }
   })
 
@@ -65,12 +50,12 @@ export async function registerSalesExecutive(state: any, formData: FormData) {
 
   const userId = authData.user.id
 
-  // Create Profile with pending status
-  const { error: profileError } = await supabase.from('profiles').upsert({
+  // Create Profile
+  const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
     id: userId,
+    email: email,
     full_name: `${firstName} ${lastName}`,
-    role: 'sales_executive',
-    status: 'pending_approval'
+    role: 'sales_executive'
   })
 
   if (profileError) {
@@ -78,26 +63,39 @@ export async function registerSalesExecutive(state: any, formData: FormData) {
   }
 
   // Generate a unique employee code
-  const employeeCode = `EMP${crypto.randomBytes(4).toString('hex').toUpperCase()}`
+  const { count } = await supabaseAdmin.from('sales_executives').select('*', { count: 'exact', head: true })
+  const nextNum = (count || 0) + 1
+  const employeeCode = `SE-${nextNum.toString().padStart(6, '0')}`
 
   // Create Sales Executive Record
-  const { error: salesExecError } = await supabase.from('sales_executives').insert({
+  const { error: salesExecError } = await supabaseAdmin.from('sales_executives').insert({
     id: userId,
     employee_code: employeeCode,
-    vendor_id: vendor.id,
+    vendor_id: null,
+    vendor_name: vendorName,
     first_name: firstName,
     last_name: lastName,
-    full_name: `${firstName} ${lastName}`,
+    full_name: [firstName, lastName].filter(Boolean).join(' ').trim(),
     email: email,
     phone: phone,
     designation: 'Sales Executive',
     commission_percentage: 10, // default
-    status: 'Pending Approval'
+    status: 'pending'
   })
 
   if (salesExecError) {
-    return { error: 'Failed to create sales executive record.' }
+    return { error: `Database Error: ${salesExecError.message || JSON.stringify(salesExecError)}` }
   }
 
-  return { success: true }
+  // Sign the user in to establish the session
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
+
+  if (signInError) {
+    return { error: 'Account created but failed to sign in automatically: ' + signInError.message }
+  }
+
+  redirect('/sales/dashboard')
 }

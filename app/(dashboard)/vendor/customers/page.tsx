@@ -1,17 +1,20 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { Card } from '@/components/Card'
 import { UsersRound, Search } from 'lucide-react'
 import Link from 'next/link'
 
-export default async function VendorCustomersPage() {
+export default async function VendorCustomersPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   // Protect route
   const { data: { user } } = await supabase.auth.getUser()
   if (process.env.DEVELOPMENT_MODE !== 'true' && !user) redirect('/login')
 
-  const { data: vendorUser } = await supabase.from('vendor_users').select('vendor_id, vendors(id, status)').eq('user_id', (user?.id || '')).single();
+  const { data: vendorUser } = await applyDateFilter(supabase.from('vendor_users').select('vendor_id, vendors(id, status)'), searchParams).eq('user_id', (user?.id || '')).single();
   const vendor = vendorUser?.vendors as any;
   
   if (!vendor || vendor.status !== 'Active') {
@@ -19,15 +22,17 @@ export default async function VendorCustomersPage() {
   }
 
   // Fetch only customers belonging to this vendor
-  const { data: customers } = await supabase.from('customers').select('*').eq('vendor_id', vendor.id).order('created_at', { ascending: false })
+  const { data: customers } = await applyDateFilter(supabase.from('customers').select('*'), searchParams).eq('vendor_id', vendor.id).order('created_at', { ascending: false })
 
   return (
     <div className="space-y-6 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Customers</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Converted leads and active clients in your network.</p>
         </div>
+        <DateRangeFilter />
+      </div>
       </div>
 
       <Card className="p-4 bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800 flex items-center justify-between">

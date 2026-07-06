@@ -1,9 +1,12 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { Card } from '@/components/Card'
 import { Users, DollarSign, Activity, UsersRound, Building, CheckCircle2, FileArchive, PackageOpen, LayoutDashboard } from 'lucide-react'
 
-export default async function VendorDashboardPage() {
+export default async function VendorDashboardPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   // Protect route
@@ -13,7 +16,7 @@ export default async function VendorDashboardPage() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', (user?.id || '')).single()
   if (process.env.DEVELOPMENT_MODE !== 'true' && profile?.role !== 'vendor') redirect('/unauthorized')
 
-  const { data: vendorUser } = await supabase.from('vendor_users').select('vendor_id, vendors(id, business_name, status)').eq('user_id', (user?.id || '')).single();
+  const { data: vendorUser } = await applyDateFilter(supabase.from('vendor_users').select('vendor_id, vendors(id, business_name, status)'), searchParams).eq('user_id', (user?.id || '')).single();
   const vendor = vendorUser?.vendors as any;
   
   if (!vendor) {
@@ -51,9 +54,11 @@ export default async function VendorDashboardPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Welcome, {vendor.business_name}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Overview of your vendor network performance.</p>
+      </div>
+        <DateRangeFilter />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

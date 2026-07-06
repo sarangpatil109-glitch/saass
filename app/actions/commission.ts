@@ -56,7 +56,8 @@ export async function updateCommissionSettings(formData: FormData) {
     revalidatePath('/dashboard/admin/commission/settings')
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -68,13 +69,13 @@ export async function updateCommissionSettings(formData: FormData) {
 export async function createCommissionFromOrder(orderData: { order_id: string, payment_id: string, customer_id: string, product_id: string, product_price: number, sales_executive_id: string, vendor_id: string }) {
   const supabase = await createClient()
   
-  // Get active settings
-  const { data: settings } = await supabase.from('commission_settings').select('*').lte('effective_from', new Date().toISOString()).order('effective_from', { ascending: false }).limit(1).single()
-  
+  // Get global commission settings (single active row)
+  const { data: settings } = await supabase.from('commission_settings').select('*').single()
+
   if (!settings) throw new Error('Commission settings not found')
 
-  const salesPercent = parseFloat(settings.sales_commission_percentage)
-  const vendorPercent = parseFloat(settings.vendor_commission_percentage)
+  const salesPercent = parseFloat(settings.sales_exec_percentage)
+  const vendorPercent = parseFloat(settings.vendor_percentage)
   
   const salesCommAmount = (orderData.product_price * salesPercent) / 100
   // RULE: Vendor gets % OF Sales Executive Commission, NOT Product Price
@@ -163,7 +164,8 @@ export async function updateCommissionStatus(commissionId: string, status: strin
     revalidatePath('/dashboard/admin/commission')
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -210,7 +212,8 @@ export async function createPayout(formData: FormData) {
     revalidatePath('/dashboard/admin/commission/payouts')
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -245,6 +248,7 @@ export async function addAdjustment(formData: FormData) {
     revalidatePath('/dashboard/admin/commission')
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }

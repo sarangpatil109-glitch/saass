@@ -20,7 +20,10 @@ import {
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
-export default async function DashboardPage() {
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
+
+export default async function DashboardPage({ searchParams }: { searchParams: { from?: string, to?: string } }) {
   const supabase = await createClient()
 
   // Protect route
@@ -43,30 +46,30 @@ export default async function DashboardPage() {
     { data: rawCustomers },
     { data: rawCommissions }
   ] = await Promise.all([
-    supabase.from('products').select('*', { count: 'exact', head: true }),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'vendor'),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'sales_executive'),
-    supabase.from('customers').select('*', { count: 'exact', head: true }),
-    supabase.from('leads').select('*', { count: 'exact', head: true }),
-    supabase.from('zip_requests').select('*', { count: 'exact', head: true }).eq('status', 'Pending'),
-    supabase.from('licenses').select('*', { count: 'exact', head: true }).eq('status', 'Active'),
-    supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(6),
-    supabase.from('orders').select('final_amount, created_at, payment_status').eq('payment_status', 'Success').order('created_at', { ascending: true }),
-    supabase.from('customers').select('id, created_at, customer_name, business_name').order('created_at', { ascending: true }),
-    supabase.from('commissions').select('amount, status, profiles!commissions_earner_id_fkey(full_name, role)')
+    applyDateFilter(supabase.from('products').select('*', { count: 'exact', head: true }), searchParams),
+    applyDateFilter(supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'vendor'), searchParams),
+    applyDateFilter(supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'sales_executive'), searchParams),
+    applyDateFilter(supabase.from('customers').select('*', { count: 'exact', head: true }), searchParams),
+    applyDateFilter(supabase.from('leads').select('*', { count: 'exact', head: true }), searchParams),
+    applyDateFilter(supabase.from('zip_requests').select('*', { count: 'exact', head: true }).eq('status', 'Pending'), searchParams),
+    applyDateFilter(supabase.from('licenses').select('*', { count: 'exact', head: true }).eq('status', 'Active'), searchParams),
+    applyDateFilter(supabase.from('activity_logs').select('*'), searchParams).order('created_at', { ascending: false }).limit(6),
+    applyDateFilter(supabase.from('orders').select('price, created_at, payment_status').eq('payment_status', 'Paid'), searchParams).order('created_at', { ascending: true }),
+    applyDateFilter(supabase.from('customers').select('id, created_at, customer_name, business_name'), searchParams).order('created_at', { ascending: true }),
+    applyDateFilter(supabase.from('commissions').select('amount, vendor_amount, status, sales_executives(full_name), vendors(business_name), orders(price)'), searchParams)
   ])
 
   // Process Revenue Logic
   const today = new Date()
-  const todayRev = rawOrders?.filter(o => new Date(o.created_at).toDateString() === today.toDateString()).reduce((acc, curr) => acc + curr.final_amount, 0) || 0
-  const thisMonthRev = rawOrders?.filter(o => new Date(o.created_at).getMonth() === today.getMonth() && new Date(o.created_at).getFullYear() === today.getFullYear()).reduce((acc, curr) => acc + curr.final_amount, 0) || 0
+  const todayRev = rawOrders?.filter(o => new Date(o.created_at).toDateString() === today.toDateString()).reduce((acc, curr) => acc + Number(curr.price), 0) || 0
+  const thisMonthRev = rawOrders?.filter(o => new Date(o.created_at).getMonth() === today.getMonth() && new Date(o.created_at).getFullYear() === today.getFullYear()).reduce((acc, curr) => acc + Number(curr.price), 0) || 0
 
   // Monthly Revenue Chart Data
   const monthlyRevenueMap: Record<string, number> = {}
   rawOrders?.forEach(order => {
     const d = new Date(order.created_at)
     const month = d.toLocaleString('default', { month: 'short' }) + ' ' + d.getFullYear().toString().substr(-2)
-    monthlyRevenueMap[month] = (monthlyRevenueMap[month] || 0) + order.final_amount
+    monthlyRevenueMap[month] = (monthlyRevenueMap[month] || 0) + Number(order.price)
   })
   const revenueChartData = Object.entries(monthlyRevenueMap).map(([month, revenue]) => ({ month, revenue }))
 
@@ -87,17 +90,24 @@ export default async function DashboardPage() {
   const salesPerformance: Record<string, { name: string, total_sales: number, commission: number }> = {}
   
   rawCommissions?.forEach(comm => {
-    const profile = Array.isArray(comm.profiles) ? comm.profiles[0] : comm.profiles;
-    const name = (profile as any)?.full_name || 'Unknown'
-    if ((profile as any)?.role === 'vendor') {
-      if (!vendorPerformance[name]) vendorPerformance[name] = { name, total_sales: 0, commission: 0 }
-      vendorPerformance[name].commission += comm.amount
-      vendorPerformance[name].total_sales += 1 // Proxy for sales count
-    } else if ((profile as any)?.role === 'sales_executive') {
-      if (!salesPerformance[name]) salesPerformance[name] = { name, total_sales: 0, commission: 0 }
-      salesPerformance[name].commission += comm.amount
-      salesPerformance[name].total_sales += 1
-    }
+    // Sales Executive
+    const exec = Array.isArray(comm.sales_executives) ? comm.sales_executives[0] : comm.sales_executives;
+    const execName = exec?.full_name || 'Unknown Executive';
+    if (!salesPerformance[execName]) salesPerformance[execName] = { name: execName, total_sales: 0, commission: 0 };
+    salesPerformance[execName].commission += Number(comm.amount);
+    salesPerformance[execName].total_sales += 1;
+
+    // Vendor
+    const vendor = Array.isArray(comm.vendors) ? comm.vendors[0] : comm.vendors;
+    const vendorName = vendor?.business_name || 'Unknown Vendor';
+    if (!vendorPerformance[vendorName]) vendorPerformance[vendorName] = { name: vendorName, total_sales: 0, commission: 0 };
+    
+    const order = Array.isArray(comm.orders) ? comm.orders[0] : comm.orders;
+    const orderPrice = order?.price || 0;
+    const vendorAmount = comm.vendor_amount ?? (orderPrice * 0.01);
+    
+    vendorPerformance[vendorName].commission += Number(vendorAmount);
+    vendorPerformance[vendorName].total_sales += 1;
   })
 
   const topVendors = Object.values(vendorPerformance).sort((a, b) => b.commission - a.commission).slice(0, 5)
@@ -119,15 +129,18 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Admin Overview</h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Real-time metrics and system health monitoring.</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Admin Dashboard</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Platform overview and key metrics.</p>
         </div>
+        <DateRangeFilter />
+      </div>
+      
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
         <div className="flex items-center gap-3">
-          <Link href="/admin/products" className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+          <Link href="/dashboard/products" className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
             <PlusCircle className="h-4 w-4 mr-2" /> Add Product
           </Link>
         </div>
@@ -271,19 +284,19 @@ export default async function DashboardPage() {
         <Card className="p-6 bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800">
           <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <Link href="/admin/products" className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
+            <Link href="/dashboard/products" className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
               <PackageSearch className="h-5 w-5 text-gray-500 dark:text-gray-400 mb-2 group-hover:text-blue-500" />
               <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Add Product</span>
             </Link>
-            <Link href="/admin/vendors" className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
+            <Link href="/dashboard/vendors" className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
               <Store className="h-5 w-5 text-gray-500 dark:text-gray-400 mb-2 group-hover:text-blue-500" />
               <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Add Vendor</span>
             </Link>
-            <Link href="/admin/sales" className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
+            <Link href="/dashboard/sales-executives" className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
               <Briefcase className="h-5 w-5 text-gray-500 dark:text-gray-400 mb-2 group-hover:text-blue-500" />
               <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Add Sales Exec</span>
             </Link>
-            <Link href="/admin/crm" className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
+            <Link href="/dashboard/customers" className="flex flex-col items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors group">
               <Users className="h-5 w-5 text-gray-500 dark:text-gray-400 mb-2 group-hover:text-blue-500" />
               <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Create Lead</span>
             </Link>

@@ -55,11 +55,11 @@ export async function createOrderFromLead(leadId: string, paymentMethod: string,
     }
 
     // 3. Get Product Pricing
-    const { data: product } = await supabase.from('products').select('*').eq('id', lead.product_id).single()
+    const { data: product } = await supabase.from('products').select('id, name, description, category, status, version, created_at, updated_at').eq('id', lead.product_id).single()
     
     // 4. Create Order
     const orderNumber = 'ORD-' + Math.random().toString(36).substring(2, 10).toUpperCase()
-    const amount = product ? product.price : (lead.expected_value || 0)
+    const amount = lead.expected_value || 0
     
     const { data: order, error: orderError } = await supabase.from('orders').insert({
       order_number: orderNumber,
@@ -99,7 +99,8 @@ export async function createOrderFromLead(leadId: string, paymentMethod: string,
     revalidatePath('/dashboard/customers')
     return { data: order, error: null }
   } catch (error: any) {
-    return { data: null, error: error.message }
+    console.error('Action Error:', error);
+    return { data: null, error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -116,6 +117,7 @@ export async function updateOrderStatus(orderId: string, status: string) {
     revalidatePath(`/dashboard/admin/orders/${orderId}`)
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }

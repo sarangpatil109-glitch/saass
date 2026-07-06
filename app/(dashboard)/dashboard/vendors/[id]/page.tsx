@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { Card } from '@/components/Card'
 import { VendorActions } from '@/components/vendors/VendorActions'
 
-export default async function VendorDetailsPage({ params }: { params: { id: string } }) {
+export default async function (props: { params: Promise<any> }) {
+  const params = await props.params;
   const supabase = await createClient()
 
   // Protect route
@@ -23,7 +24,7 @@ export default async function VendorDetailsPage({ params }: { params: { id: stri
     profiles (full_name)
   `).eq('vendor_id', params.id).order('created_at', { ascending: false })
 
-  const { data: coupons } = await supabase.from('vendor_coupon_codes').select('*').eq('vendor_id', params.id).order('created_at', { ascending: false })
+
 
   // Fetch Assigned Products
   const { data: vendorProducts } = await supabase.from('vendor_products').select(`
@@ -51,7 +52,7 @@ export default async function VendorDetailsPage({ params }: { params: { id: stri
               {vendor.logo_url ? <img src={vendor.logo_url} alt="" className="w-full h-full object-cover rounded-xl" /> : <Store className="h-8 w-8" />}
             </div>
             <div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div className="flex items-center gap-3">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{vendor.business_name}</h1>
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                   vendor.status === 'Active' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
@@ -61,6 +62,8 @@ export default async function VendorDetailsPage({ params }: { params: { id: stri
                   {vendor.status}
                 </span>
               </div>
+        
+      </div>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Vendor ID: <span className="font-mono text-gray-900 dark:text-gray-300">{vendor.vendor_code}</span></p>
             </div>
           </div>
@@ -202,27 +205,7 @@ export default async function VendorDetailsPage({ params }: { params: { id: stri
             </div>
           </Card>
 
-          <Card className="p-6 bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4">Active Coupon</h3>
-            <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 rounded-lg p-4 text-center">
-              <span className="block font-mono text-xl font-bold text-blue-700 dark:text-blue-400 tracking-wider">
-                {vendor.coupon_code}
-              </span>
-              <p className="text-xs text-blue-600/70 dark:text-blue-400/70 mt-2">Share this code with customers for onboarding.</p>
-            </div>
-            
-            <div className="mt-6">
-              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Coupon History</h4>
-              <div className="space-y-3">
-                {coupons && coupons.length > 0 ? coupons.map((c: any) => (
-                  <div key={c.id} className="flex justify-between text-sm">
-                    <span className={`font-mono ${c.is_active ? 'text-gray-900 dark:text-white' : 'text-gray-400 line-through'}`}>{c.code}</span>
-                    <span className="text-gray-500 text-xs">{new Date(c.created_at).toLocaleDateString()}</span>
-                  </div>
-                )) : null}
-              </div>
-            </div>
-          </Card>
+
 
           <Card className="p-6 bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800">
             <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4 flex items-center"><Clock className="w-4 h-4 mr-2" /> Activity Log</h3>

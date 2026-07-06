@@ -1,9 +1,13 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { Card } from '@/components/Card'
 import { Users, DollarSign, Activity, UsersRound, Building, CheckCircle2, FileArchive, PackageOpen, LayoutDashboard } from 'lucide-react'
+import VendorDashboardClient from './VendorDashboardClient'
 
-export default async function VendorDashboardPage() {
+export default async function VendorDashboardPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   // Protect route
@@ -13,7 +17,7 @@ export default async function VendorDashboardPage() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', (user?.id || '')).single()
   if (process.env.DEVELOPMENT_MODE !== 'true' && profile?.role !== 'vendor') redirect('/unauthorized')
 
-  const { data: vendorUser } = await supabase.from('vendor_users').select('vendor_id, vendors(id, business_name, status)').eq('user_id', (user?.id || '')).single();
+  const { data: vendorUser } = await applyDateFilter(supabase.from('vendor_users').select('vendor_id, vendors(id, business_name, status)'), searchParams).eq('user_id', (user?.id || '')).single();
   const vendor = vendorUser?.vendors as any;
   
   if (!vendor) {
@@ -38,73 +42,28 @@ export default async function VendorDashboardPage() {
 
   const vendorId = vendor.id
 
-  // Fetch KPI data
   const [
     { count: totalSalesExecs },
-    { count: activeSalesExecs },
-    { count: pendingSalesExecs },
-    { count: totalLeads },
-    { count: totalCustomers },
-    { count: totalOrders },
-    { data: commissionData }
+    { data: ordersData },
+    { data: commissionData },
+    { data: salesRequestsData },
+    { data: commissionPaymentsData }
   ] = await Promise.all([
-    supabase.from('sales_executives').select('*', { count: 'exact', head: true }).eq('vendor_id', vendorId),
-    supabase.from('sales_executives').select('*', { count: 'exact', head: true }).eq('vendor_id', vendorId).eq('status', 'Active'),
-    supabase.from('sales_executives').select('*', { count: 'exact', head: true }).eq('vendor_id', vendorId).eq('status', 'Pending Approval'),
-    supabase.from('leads').select('*', { count: 'exact', head: true }).eq('assigned_vendor_id', vendorId),
-    supabase.from('customers').select('*', { count: 'exact', head: true }).eq('vendor_id', vendorId),
-    supabase.from('orders').select('*', { count: 'exact', head: true }).eq('vendor_id', vendorId),
-    supabase.from('commission_transactions').select('amount, status').eq('vendor_id', vendorId).eq('recipient_type', 'vendor')
+    applyDateFilter(supabase.from('sales_executives').select('*', { count: 'exact', head: true }), searchParams).eq('vendor_id', vendorId),
+    applyDateFilter(supabase.from('orders').select('*, sales_executives!inner(vendor_id)'), searchParams).eq('sales_executives.vendor_id', vendorId).order('created_at', { ascending: false }),
+    applyDateFilter(supabase.from('commissions').select('*, orders(price)'), searchParams).eq('vendor_id', vendorId).order('created_at', { ascending: false }),
+    applyDateFilter(supabase.from('sales_requests').select('*, sales_executives!inner(vendor_id)'), searchParams).eq('sales_executives.vendor_id', vendorId).order('created_at', { ascending: false }),
+    applyDateFilter(supabase.from('commission_payments').select('*'), searchParams).eq('vendor_id', vendorId).eq('payee_type', 'vendor').order('created_at', { ascending: false })
   ])
 
-  const totalCommission = commissionData?.reduce((acc, curr) => acc + (curr.amount || 0), 0) || 0
-  const pendingCommission = commissionData?.filter(c => c.status === 'Pending').reduce((acc, curr) => acc + (curr.amount || 0), 0) || 0
-  const paidCommission = commissionData?.filter(c => c.status === 'Paid').reduce((acc, curr) => acc + (curr.amount || 0), 0) || 0
-
-  const stats = [
-    { name: 'Total Sales Executives', value: totalSalesExecs || 0, icon: Users, color: 'bg-blue-50 text-blue-600 dark:bg-blue-900/30' },
-    { name: 'Active Sales Executives', value: activeSalesExecs || 0, icon: Users, color: 'bg-green-50 text-green-600 dark:bg-green-900/30' },
-    { name: 'Pending Approvals', value: pendingSalesExecs || 0, icon: UsersRound, color: 'bg-orange-50 text-orange-600 dark:bg-orange-900/30' },
-    { name: 'Total Leads', value: totalLeads || 0, icon: Activity, color: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30' },
-    { name: 'Total Customers', value: totalCustomers || 0, icon: UsersRound, color: 'bg-cyan-50 text-cyan-600 dark:bg-cyan-900/30' },
-    { name: 'Total Orders', value: totalOrders || 0, icon: PackageOpen, color: 'bg-purple-50 text-purple-600 dark:bg-purple-900/30' },
-    { name: 'Pending Commission', value: `₹${pendingCommission.toFixed(2)}`, icon: DollarSign, color: 'bg-orange-50 text-orange-600 dark:bg-orange-900/30' },
-    { name: 'Paid Commission', value: `₹${paidCommission.toFixed(2)}`, icon: CheckCircle2, color: 'bg-teal-50 text-teal-600 dark:bg-teal-900/30' },
-  ]
-
   return (
-    <div className="space-y-6 pb-12">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Welcome, {vendor.business_name}</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Overview of your vendor network performance.</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <Card key={stat.name} className="p-5 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 flex items-center shadow-sm">
-            <div className={`p-3 rounded-xl ${stat.color} mr-4 flex-shrink-0`}>
-              <stat.icon className="h-6 w-6" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{stat.name}</p>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{stat.value}</h3>
-            </div>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col items-center justify-center min-h-[300px] text-center">
-           <LayoutDashboard className="h-12 w-12 text-gray-200 dark:text-gray-700 mb-4" />
-           <p className="text-gray-500 dark:text-gray-400 font-medium">Monthly Sales Trend</p>
-           <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Not enough data to display chart.</p>
-        </Card>
-        <Card className="p-6 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm flex flex-col items-center justify-center min-h-[300px] text-center">
-           <Users className="h-12 w-12 text-gray-200 dark:text-gray-700 mb-4" />
-           <p className="text-gray-500 dark:text-gray-400 font-medium">Top Sales Executives</p>
-           <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">No active executives found.</p>
-        </Card>
-      </div>
-    </div>
+    <VendorDashboardClient 
+      vendorName={vendor.business_name} 
+      totalSalesExecs={totalSalesExecs || 0}
+      orders={ordersData || []} 
+      commissions={commissionData || []}
+      commissionPayments={commissionPaymentsData || []}
+      salesRequests={salesRequestsData || []}
+    />
   )
 }

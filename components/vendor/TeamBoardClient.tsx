@@ -33,9 +33,9 @@ export function TeamBoardClient({ initialTeam }: { initialTeam: any[] }) {
   }
 
   const filteredTeam = initialTeam.filter(member => {
-    const matchesSearch = member.full_name?.toLowerCase().includes(search.toLowerCase()) || 
-                          member.email?.toLowerCase().includes(search.toLowerCase()) ||
-                          member.employee_code?.toLowerCase().includes(search.toLowerCase())
+    const matchesSearch = (member.full_name || '').toLowerCase().includes(search.toLowerCase()) || 
+                          (member.email || '').toLowerCase().includes(search.toLowerCase()) ||
+                          (member.employee_code || '').toLowerCase().includes(search.toLowerCase())
     const matchesStatus = statusFilter === '' || member.status === statusFilter
     return matchesSearch && matchesStatus
   })

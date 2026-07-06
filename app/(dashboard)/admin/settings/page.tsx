@@ -1,25 +1,30 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { Card } from '@/components/Card'
 import { Shield, Bell, Database, Key } from 'lucide-react'
 
-export default async function SettingsPage() {
+export default async function SettingsPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (process.env.DEVELOPMENT_MODE !== 'true' && !user) redirect('/login')
 
-  const { data: profile } = await supabase.from('profiles').select('role, full_name, email').eq('id', (user?.id || '')).single()
+  const { data: profile } = await applyDateFilter(supabase.from('profiles').select('role, full_name, email'), searchParams).eq('id', (user?.id || '')).single()
   if (process.env.DEVELOPMENT_MODE !== 'true' && profile?.role !== 'admin') redirect('/unauthorized')
 
-  const { data: policies } = await supabase.from('license_policies').select('*')
-  const { data: commSettings } = await supabase.from('commission_settings').select('*').maybeSingle()
+  const { data: policies } = await applyDateFilter(supabase.from('license_policies').select('*'), searchParams)
+  const { data: commSettings } = await applyDateFilter(supabase.from('commission_settings').select('*'), searchParams).maybeSingle()
 
   return (
     <div className="space-y-6 pb-12">
-      <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Settings</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Platform configuration and policy management.</p>
+      </div>
+        <DateRangeFilter />
       </div>
 
       {/* Admin Profile */}

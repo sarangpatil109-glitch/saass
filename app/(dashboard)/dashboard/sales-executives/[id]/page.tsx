@@ -6,7 +6,8 @@ import { Card } from '@/components/Card'
 import { SalesExecutiveActions } from '@/components/sales/SalesExecutiveActions'
 import { TargetManagement } from '@/components/sales/TargetManagement'
 
-export default async function SalesExecutiveDetailsPage({ params }: { params: { id: string } }) {
+export default async function (props: { params: Promise<any> }) {
+  const params = await props.params;
   const supabase = await createClient()
 
   // Protect route
@@ -18,7 +19,7 @@ export default async function SalesExecutiveDetailsPage({ params }: { params: { 
 
   const { data: exec } = await supabase.from('sales_executives').select(`
     *,
-    vendors (company_name)
+    vendors (business_name)
   `).eq('id', params.id).single()
   
   if (!exec) redirect('/dashboard/sales-executives')
@@ -41,12 +42,12 @@ export default async function SalesExecutiveDetailsPage({ params }: { params: { 
         </Link>
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 text-2xl font-bold shadow-sm border border-blue-200 dark:border-blue-800">
-              {exec.profile_photo ? <img src={exec.profile_photo} alt="" className="w-full h-full object-cover rounded-xl" /> : exec.full_name.charAt(0)}
+            <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-2xl shadow-sm border border-blue-200 dark:border-blue-800">
+              {exec.profile_photo ? <img src={exec.profile_photo} alt="" className="w-full h-full object-cover rounded-full" /> : (exec.full_name || [exec.first_name, exec.last_name].filter(Boolean).join(' ') || 'U').charAt(0).toUpperCase()}
             </div>
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{exec.full_name}</h1>
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{exec.full_name || [exec.first_name, exec.last_name].filter(Boolean).join(' ') || 'Unknown'}</h1>
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                   exec.status === 'Active' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
                   exec.status === 'Suspended' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
@@ -55,6 +56,8 @@ export default async function SalesExecutiveDetailsPage({ params }: { params: { 
                   {exec.status}
                 </span>
               </div>
+        
+      </div>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Employee ID: <span className="font-mono text-gray-900 dark:text-gray-300">{exec.employee_code}</span></p>
             </div>
           </div>
@@ -113,25 +116,26 @@ export default async function SalesExecutiveDetailsPage({ params }: { params: { 
           <TargetManagement execId={exec.id} targets={targets || []} />
         </div>
 
-        {/* Right Column */}
+
         <div className="space-y-6">
           <Card className="p-6 bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800">
             <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4 flex items-center"><Store className="w-4 h-4 mr-2" /> Vendor Mapping</h3>
-            <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 rounded-lg p-4">
-              <p className="text-sm font-medium text-gray-900 dark:text-white">{vendorInfo?.company_name || 'Unknown Vendor'}</p>
-              <div className="mt-3 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Vendor Code</span>
-                  <span className="font-mono text-gray-900 dark:text-white">{exec.vendor_code}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Coupon Used</span>
-                  <span className="font-mono text-gray-900 dark:text-white">{exec.vendor_coupon_code}</span>
+            {vendorInfo ? (
+              <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 rounded-lg p-4">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{exec.vendor_name || vendorInfo.business_name || 'Unknown Vendor'}</p>
+                <div className="mt-3 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Vendor Code</span>
+                    <span className="font-mono text-gray-900 dark:text-white">{exec.vendor_code}</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            ) : (
+              <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 rounded-lg p-4">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">{exec.vendor_name || 'Unknown Vendor'}</p>
+              </div>
+            )}
           </Card>
-
           <Card className="p-6 bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800">
             <h3 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider mb-4 flex items-center"><Target className="w-4 h-4 mr-2" /> Performance & Commission</h3>
             <div className="space-y-4 text-sm">

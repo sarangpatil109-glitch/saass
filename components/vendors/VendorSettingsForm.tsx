@@ -67,27 +67,7 @@ export function VendorSettingsForm({ profile }: { profile: any }) {
           </div>
         )}
 
-        <Card className="p-6 bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Bank Details</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bank Name</label>
-              <Input name="bank_name" defaultValue={profile.bank_name || ''} placeholder="e.g. HDFC Bank" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Account Number</label>
-              <Input name="account_number" defaultValue={profile.account_number || ''} placeholder="e.g. 50100012345678" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">IFSC Code</label>
-              <Input name="ifsc_code" defaultValue={profile.ifsc_code || ''} placeholder="e.g. HDFC0001234" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">UPI ID</label>
-              <Input name="upi_id" defaultValue={profile.upi_id || ''} placeholder="e.g. business@upi" />
-            </div>
-          </div>
-        </Card>
+
         
         <Card className="p-6 bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800">
           <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Branding</h3>

@@ -1,9 +1,12 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { Card } from '@/components/Card'
 import { Wallet, Activity, CheckSquare } from 'lucide-react'
 
-export default async function VendorWalletPage() {
+export default async function VendorWalletPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   // Protect route
@@ -13,20 +16,22 @@ export default async function VendorWalletPage() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', (user?.id || '')).single()
   if (process.env.DEVELOPMENT_MODE !== 'true' && profile?.role !== 'vendor') redirect('/unauthorized')
 
-  const { data: vendorUser } = await supabase.from('vendor_users').select('vendor_id, vendors(id, business_name)').eq('user_id', (user?.id || '')).single();
+  const { data: vendorUser } = await applyDateFilter(supabase.from('vendor_users').select('vendor_id, vendors(id, business_name)'), searchParams).eq('user_id', (user?.id || '')).single();
   const vendor = vendorUser?.vendors as any;
   if (!vendor) redirect('/')
 
   // Fetch Wallet
-  const { data: wallet } = await supabase.from('commission_wallets').select('*').eq('user_type', 'Vendor').eq('user_id', vendor.id).single()
+  const { data: wallet } = await applyDateFilter(supabase.from('commission_wallets').select('*'), searchParams).eq('user_type', 'Vendor').eq('user_id', vendor.id).single()
   
   // Fetch Ledger
-  const { data: ledger } = await supabase.from('commission_ledger').select('*').eq('wallet_id', wallet?.id).order('created_at', { ascending: false })
+  const { data: ledger } = await applyDateFilter(supabase.from('commission_ledger').select('*'), searchParams).eq('wallet_id', wallet?.id).order('created_at', { ascending: false })
 
   return (
     <div className="space-y-6 pb-12">
-      <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Vendor Earnings Wallet</h1>
+      </div>
+        <DateRangeFilter />
       </div>
 
       {wallet ? (

@@ -1,9 +1,12 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { Card } from '@/components/Card'
 import { Users, DollarSign, Activity, UsersRound, Trophy, Target, TrendingUp, XCircle, LayoutDashboard } from 'lucide-react'
 
-export default async function SalesDashboardPage() {
+export default async function SalesDashboardPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   // Protect route
@@ -11,9 +14,9 @@ export default async function SalesDashboardPage() {
   if (process.env.DEVELOPMENT_MODE !== 'true' && !user) redirect('/login')
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', (user?.id || '')).single()
-  if (process.env.DEVELOPMENT_MODE !== 'true' && profile?.role !== 'sales') redirect('/unauthorized')
+  if (process.env.DEVELOPMENT_MODE !== 'true' && profile?.role !== 'sales_executive') redirect('/unauthorized')
 
-  const { data: exec } = await supabase.from('sales_executives').select('id, full_name, status, vendor_code').eq('user_id', (user?.id || '')).single()
+  const { data: exec } = await applyDateFilter(supabase.from('sales_executives').select('id, full_name, status, vendor_code'), searchParams).eq('id', (user?.id || '')).single()
   
   if (!exec) {
     return (
@@ -49,9 +52,11 @@ export default async function SalesDashboardPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Welcome, {exec.full_name}</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Vendor Network: <span className="font-mono">{exec.vendor_code}</span></p>
+      </div>
+        <DateRangeFilter />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -1,18 +1,21 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { LeadForm } from '@/components/crm/LeadForm'
 
-export default async function NewLeadPage() {
+export default async function NewLeadPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (process.env.DEVELOPMENT_MODE !== 'true' && !user) redirect('/login')
 
-  const { data: vendors } = await supabase.from('vendors').select('id, company_name').is('deleted_at', null)
-  const { data: execs } = await supabase.from('sales_executives').select('id, full_name').is('deleted_at', null)
-  const { data: products } = await supabase.from('products').select('id, name')
+  const { data: vendors } = await applyDateFilter(supabase.from('vendors').select('id, business_name'), searchParams).is('deleted_at', null)
+  const { data: execs } = await applyDateFilter(supabase.from('sales_executives').select('id, full_name'), searchParams).is('deleted_at', null)
+  const { data: products } = await applyDateFilter(supabase.from('products').select('id, name'), searchParams)
 
   return (
     <div className="space-y-6 pb-12">

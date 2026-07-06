@@ -1,10 +1,13 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { Card } from '@/components/Card'
 import { Users, Search, Filter } from 'lucide-react'
 import { Button } from '@/components/Button'
 
-export default async function VendorTeamPage() {
+export default async function VendorTeamPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   // Protect route
@@ -14,7 +17,7 @@ export default async function VendorTeamPage() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', (user?.id || '')).single()
   if (process.env.DEVELOPMENT_MODE !== 'true' && profile?.role !== 'vendor') redirect('/unauthorized')
 
-  const { data: vendorUser } = await supabase.from('vendor_users').select('vendor_id, vendors(id, status)').eq('user_id', (user?.id || '')).single();
+  const { data: vendorUser } = await applyDateFilter(supabase.from('vendor_users').select('vendor_id, vendors(id, status)'), searchParams).eq('user_id', (user?.id || '')).single();
   const vendor = vendorUser?.vendors as any;
   
   if (!vendor || vendor.status !== 'Active') {
@@ -28,10 +31,12 @@ export default async function VendorTeamPage() {
   return (
     <div className="space-y-6 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">My Team</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your Sales Executives and track their performance.</p>
         </div>
+        <DateRangeFilter />
+      </div>
       </div>
 
       <Card className="p-4 bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800">
@@ -81,7 +86,7 @@ export default async function VendorTeamPage() {
                       </div>
                       <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">No Team Members Yet</h3>
                       <p className="text-sm text-gray-500 dark:text-gray-400 max-w-sm mb-6">
-                        You don't have any Sales Executives registered under your vendor code yet. Have them register using your unique Coupon Code.
+                        You don't have any Sales Executives registered under your vendor code yet. Contact admin to assign an executive to your account.
                       </p>
                     </div>
                   </td>

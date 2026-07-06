@@ -1,15 +1,18 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { Card } from '@/components/Card'
 import { ShoppingCart, CheckCircle2, Clock, XCircle } from 'lucide-react'
 
-export default async function SalesOrdersPage() {
+export default async function SalesOrdersPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (process.env.DEVELOPMENT_MODE !== 'true' && !user) redirect('/login')
 
-  const { data: exec } = await supabase.from('sales_executives').select('id, status').eq('user_id', (user?.id || '')).single()
+  const { data: exec } = await applyDateFilter(supabase.from('sales_executives').select('id, status'), searchParams).eq('id', (user?.id || '')).single()
   
   if (!exec || exec.status !== 'Active') {
     redirect('/sales/dashboard')
@@ -17,24 +20,25 @@ export default async function SalesOrdersPage() {
 
   const { data: orders } = await supabase
     .from('orders')
-    .select(`*, customers (business_name, email), products (name)`)
-    .eq('sales_executive_id', exec.id)
+    .select(`*`)
+    .eq('sales_exec_id', exec.id)
     .order('created_at', { ascending: false })
 
   const allOrders = orders || []
   const todayStr  = new Date().toDateString()
 
   const todayOrders   = allOrders.filter(o => new Date(o.created_at).toDateString() === todayStr)
-  const todayRevenue  = todayOrders.filter(o => o.payment_status === 'Success').reduce((s, o) => s + Number(o.final_amount), 0)
-  const totalRevenue  = allOrders.filter(o => o.payment_status === 'Success').reduce((s, o) => s + Number(o.final_amount), 0)
-  const pendingCount  = allOrders.filter(o => o.payment_status === 'Pending').length
-  const successCount  = allOrders.filter(o => o.payment_status === 'Success').length
+  const todayRevenue  = todayOrders.reduce((s, o) => s + Number(o.price || 0), 0)
+  const totalRevenue  = allOrders.reduce((s, o) => s + Number(o.price || 0), 0)
+  const approvedCount = allOrders.filter(o => o.status === 'Approved').length
 
   return (
     <div className="space-y-6 pb-12">
-      <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Orders</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">All orders successfully closed by you.</p>
+      </div>
+        <DateRangeFilter />
       </div>
 
       {/* KPI Cards */}
@@ -52,8 +56,8 @@ export default async function SalesOrdersPage() {
           <p className="text-2xl font-bold text-blue-600 mt-1">₹{totalRevenue.toFixed(0)}</p>
         </Card>
         <Card className="p-5 bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 shadow-sm">
-          <p className="text-sm text-gray-500 dark:text-gray-400">Pending / Paid</p>
-          <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{pendingCount} / {successCount}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400">Approved</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{approvedCount}</p>
         </Card>
       </div>
 
@@ -67,43 +71,39 @@ export default async function SalesOrdersPage() {
             <thead className="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-900 border-b border-gray-100 dark:border-gray-800">
               <tr>
                 <th className="px-6 py-4">Order No.</th>
-                <th className="px-6 py-4">Customer / Business</th>
+                <th className="px-6 py-4">Customer</th>
                 <th className="px-6 py-4">Product</th>
                 <th className="px-6 py-4">Amount</th>
-                <th className="px-6 py-4">Payment Status</th>
+                <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Date</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
               {allOrders.length > 0 ? allOrders.map((order: any) => {
-                const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers
-                const product  = Array.isArray(order.products)  ? order.products[0]  : order.products
                 return (
                   <tr key={order.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                     <td className="px-6 py-4">
                       <span className="font-mono text-xs text-gray-600 dark:text-gray-400">
-                        {order.order_number}
+                        {order.order_id}
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="font-medium text-gray-900 dark:text-white">{customer?.business_name || 'N/A'}</div>
-                      <div className="text-xs text-gray-500">{customer?.email}</div>
+                      <div className="font-medium text-gray-900 dark:text-white">{order.customer_name || 'N/A'}</div>
                     </td>
-                    <td className="px-6 py-4 text-gray-700 dark:text-gray-300">{product?.name || '—'}</td>
+                    <td className="px-6 py-4 text-gray-700 dark:text-gray-300">{order.product_name || '—'}</td>
                     <td className="px-6 py-4 font-semibold text-gray-900 dark:text-white">
-                      ₹{Number(order.final_amount).toFixed(2)}
+                      ₹{Number(order.price).toFixed(2)}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
-                        order.payment_status === 'Success'  ? 'bg-green-100 text-green-800'  :
-                        order.payment_status === 'Failed'   ? 'bg-red-100 text-red-800'     :
-                        order.payment_status === 'Refunded' ? 'bg-purple-100 text-purple-800':
+                        order.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                        order.status === 'Rejected' ? 'bg-red-100 text-red-800' :
                         'bg-yellow-100 text-yellow-800'
                       }`}>
-                        {order.payment_status === 'Success'  && <CheckCircle2 className="h-3 w-3" />}
-                        {order.payment_status === 'Pending'  && <Clock className="h-3 w-3" />}
-                        {order.payment_status === 'Failed'   && <XCircle className="h-3 w-3" />}
-                        {order.payment_status}
+                        {order.status === 'Approved' && <CheckCircle2 className="h-3 w-3" />}
+                        {order.status === 'Pending'  && <Clock className="h-3 w-3" />}
+                        {order.status === 'Rejected' && <XCircle className="h-3 w-3" />}
+                        {order.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-xs text-gray-500">

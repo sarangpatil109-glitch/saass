@@ -1,23 +1,28 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { Card } from '@/components/Card'
 import { UsersRound, Search } from 'lucide-react'
 import Link from 'next/link'
 
-export default async function CustomersPage() {
+export default async function CustomersPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (process.env.DEVELOPMENT_MODE !== 'true' && !user) redirect('/login')
 
-  const { data: customers } = await supabase.from('customers').select('*').order('created_at', { ascending: false })
+  const { data: customers } = await applyDateFilter(supabase.from('customers').select('*'), searchParams).order('created_at', { ascending: false })
 
   return (
     <div className="space-y-6 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Customers</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Converted leads and active clients.</p>
         </div>
+        <DateRangeFilter />
+      </div>
       </div>
 
       <Card className="overflow-hidden bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800">

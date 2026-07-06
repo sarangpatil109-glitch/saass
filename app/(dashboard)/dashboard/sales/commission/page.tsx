@@ -1,9 +1,12 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { Card } from '@/components/Card'
 import { Wallet, Activity, CheckSquare } from 'lucide-react'
 
-export default async function SalesExecWalletPage() {
+export default async function SalesExecWalletPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   // Protect route
@@ -11,21 +14,23 @@ export default async function SalesExecWalletPage() {
   if (process.env.DEVELOPMENT_MODE !== 'true' && !user) redirect('/login')
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', (user?.id || '')).single()
-  if (process.env.DEVELOPMENT_MODE !== 'true' && profile?.role !== 'sales') redirect('/unauthorized')
+  if (process.env.DEVELOPMENT_MODE !== 'true' && profile?.role !== 'sales_executive') redirect('/unauthorized')
 
-  const { data: exec } = await supabase.from('sales_executives').select('id, full_name').eq('user_id', (user?.id || '')).single()
+  const { data: exec } = await applyDateFilter(supabase.from('sales_executives').select('id, full_name'), searchParams).eq('id', (user?.id || '')).single()
   if (!exec) redirect('/')
 
   // Fetch Wallet
-  const { data: wallet } = await supabase.from('commission_wallets').select('*').eq('user_type', 'Sales Executive').eq('user_id', exec.id).single()
+  const { data: wallet } = await applyDateFilter(supabase.from('commission_wallets').select('*'), searchParams).eq('user_type', 'Sales Executive').eq('user_id', exec.id).single()
   
   // Fetch Ledger
-  const { data: ledger } = await supabase.from('commission_ledger').select('*').eq('wallet_id', wallet?.id).order('created_at', { ascending: false })
+  const { data: ledger } = await applyDateFilter(supabase.from('commission_ledger').select('*'), searchParams).eq('wallet_id', wallet?.id).order('created_at', { ascending: false })
 
   return (
     <div className="space-y-6 pb-12">
-      <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">My Earnings Wallet</h1>
+      </div>
+        <DateRangeFilter />
       </div>
 
       {wallet ? (

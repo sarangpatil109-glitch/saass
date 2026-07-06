@@ -51,7 +51,8 @@ export async function createCustomer(formData: FormData) {
     revalidatePath('/dashboard/customers')
     return { data, error: null }
   } catch (error: any) {
-    return { data: null, error: error.message }
+    console.error('Action Error:', error);
+    return { data: null, error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -84,6 +85,7 @@ export async function updateCustomer(customerId: string, formData: FormData) {
     revalidatePath('/dashboard/customers')
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }

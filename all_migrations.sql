@@ -930,7 +930,7 @@ ON products FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
 CREATE TABLE IF NOT EXISTS vendors (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   vendor_code TEXT UNIQUE NOT NULL,
-  coupon_code TEXT UNIQUE NOT NULL,
+
   user_id UUID REFERENCES auth.users(id),
   company_name TEXT NOT NULL,
   owner_name TEXT NOT NULL,
@@ -984,27 +984,15 @@ CREATE TABLE IF NOT EXISTS vendor_activity_logs (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Instead of hardcoding coupon codes in vendors, let's track them in a dedicated table to handle regeneration logs natively.
-CREATE TABLE IF NOT EXISTS vendor_coupon_codes (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  vendor_id UUID REFERENCES vendors(id) ON DELETE CASCADE,
-  code TEXT UNIQUE NOT NULL,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  deactivated_at TIMESTAMPTZ
-);
-
 -- RLS Security
 ALTER TABLE vendors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vendor_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE vendor_activity_logs ENABLE ROW LEVEL SECURITY;
-ALTER TABLE vendor_coupon_codes ENABLE ROW LEVEL SECURITY;
 
 -- Admins full access policy 
 CREATE POLICY "Enable all access for admin users on vendors" ON vendors FOR ALL TO authenticated USING (true);
 CREATE POLICY "Enable all access for admin users on vendor_profiles" ON vendor_profiles FOR ALL TO authenticated USING (true);
 CREATE POLICY "Enable all access for admin users on logs" ON vendor_activity_logs FOR ALL TO authenticated USING (true);
-CREATE POLICY "Enable all access for admin users on coupons" ON vendor_coupon_codes FOR ALL TO authenticated USING (true);
 
 -- Triggers for updated_at
 CREATE TRIGGER update_vendors_updated_at BEFORE UPDATE
@@ -1026,7 +1014,7 @@ CREATE TABLE IF NOT EXISTS sales_executives (
   user_id UUID REFERENCES auth.users(id),
   vendor_id UUID REFERENCES vendors(id) ON DELETE RESTRICT,
   vendor_code TEXT NOT NULL,
-  vendor_coupon_code TEXT NOT NULL,
+
   full_name TEXT NOT NULL,
   email TEXT NOT NULL UNIQUE,
   phone TEXT NOT NULL,
@@ -1686,12 +1674,7 @@ RENAME COLUMN company_logo TO logo_url;
 ALTER TABLE vendors
 ADD COLUMN IF NOT EXISTS commission_type TEXT CHECK (commission_type IN ('percentage', 'fixed')),
 ADD COLUMN IF NOT EXISTS commission_value NUMERIC DEFAULT 0,
-ADD COLUMN IF NOT EXISTS coupon_discount_type TEXT CHECK (coupon_discount_type IN ('percentage', 'fixed')),
-ADD COLUMN IF NOT EXISTS coupon_discount_value NUMERIC DEFAULT 0,
-ADD COLUMN IF NOT EXISTS coupon_max_uses INT DEFAULT 0,
-ADD COLUMN IF NOT EXISTS coupon_used_count INT DEFAULT 0,
-ADD COLUMN IF NOT EXISTS coupon_expiry_date TIMESTAMPTZ,
-ADD COLUMN IF NOT EXISTS coupon_status TEXT CHECK (coupon_status IN ('Active', 'Expired', 'Disabled')) DEFAULT 'Active';
+-- Coupon columns removed
 
 -- Create vendor_products junction table
 CREATE TABLE IF NOT EXISTS vendor_products (

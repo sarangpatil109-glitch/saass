@@ -300,7 +300,8 @@ export async function simulateWebhook(cashfreeOrderId: string, transactionId: st
 
     return { error: null }
   } catch (e: any) {
-    return { error: e.message }
+    console.error('Action Error:', e);
+    return { error: `Database Error: ${e.message || JSON.stringify(e)}` }
   }
 }
 
@@ -338,6 +339,7 @@ export async function markRefund(orderId: string, amount: number, reason: string
     await logTimeline(orderId, 'Refund Recorded', `Ref: ${refundRef} — ${reason}`)
     return { error: null }
   } catch (e: any) {
-    return { error: e.message }
+    console.error('Action Error:', e);
+    return { error: `Database Error: ${e.message || JSON.stringify(e)}` }
   }
 }

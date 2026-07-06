@@ -3,9 +3,12 @@ import { Card } from '@/components/Card'
 import { PlusCircle, Search, Filter, Briefcase, Mail, Phone, Store } from 'lucide-react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { Button } from '@/components/Button'
 
-export default async function SalesExecutivesPage({ searchParams }: { searchParams: any }) {
+export default async function (props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   // Protect route
@@ -20,10 +23,10 @@ export default async function SalesExecutivesPage({ searchParams }: { searchPara
   const vendorFilter = searchParams?.vendor || ''
 
   // Build query
-  let execQuery = supabase.from('sales_executives').select(`
+  let execQuery = applyDateFilter(supabase.from('sales_executives').select(`
     *,
-    vendors (company_name)
-  `).is('deleted_at', null).order('created_at', { ascending: false })
+    vendors (business_name)
+  `), searchParams).is('deleted_at', null).order('created_at', { ascending: false })
 
   if (query) {
     execQuery = execQuery.or(`full_name.ilike.%${query}%,employee_code.ilike.%${query}%,vendor_code.ilike.%${query}%,email.ilike.%${query}%`)
@@ -35,16 +38,21 @@ export default async function SalesExecutivesPage({ searchParams }: { searchPara
     execQuery = execQuery.ilike('vendor_code', `%${vendorFilter}%`)
   }
 
-  const { data: execs } = await execQuery
+  const { data: execs, error } = await execQuery
+
+console.log("Sales Executives:", execs)
+console.log("Sales Executives Error:", error)
 
   return (
     <div className="space-y-6 pb-12">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Sales Executives</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage sales representatives, view targets, and track performance.</p>
         </div>
+        <DateRangeFilter />
+      </div>
         <div className="flex items-center gap-3">
           <Link href="/dashboard/sales-executives/new">
             <Button className="inline-flex items-center">
@@ -109,10 +117,10 @@ export default async function SalesExecutivesPage({ searchParams }: { searchPara
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
-                            {exec.full_name.charAt(0)}
+                            {(exec.full_name || [exec.first_name, exec.last_name].filter(Boolean).join(' ') || 'U').charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <div className="font-medium text-gray-900 dark:text-white">{exec.full_name}</div>
+                            <div className="font-medium text-gray-900 dark:text-white">{exec.full_name || [exec.first_name, exec.last_name].filter(Boolean).join(' ') || 'Unknown'}</div>
                             <div className="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">{exec.employee_code}</div>
                           </div>
                         </div>
@@ -128,13 +136,14 @@ export default async function SalesExecutivesPage({ searchParams }: { searchPara
                       <td className="px-6 py-4">
                         <div className="flex items-center text-gray-700 dark:text-gray-300">
                           <Store className="h-4 w-4 mr-2 text-gray-400" />
-                          <span className="font-medium text-sm">{vendorInfo?.company_name || 'Unknown'}</span>
+                          <span className="font-medium text-sm">{exec.vendor_name || vendorInfo?.business_name || 'Unassigned'}</span>
                         </div>
-                        <div className="text-xs text-gray-500 font-mono mt-1 ml-6">{exec.vendor_code}</div>
+                        <div className="text-xs text-gray-500 font-mono mt-1 ml-6">{exec.vendor_code || 'N/A'}</div>
                       </td>
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                           exec.status === 'Active' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                          exec.status === 'pending' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' :
                           exec.status === 'Suspended' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
                           'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'
                         }`}>

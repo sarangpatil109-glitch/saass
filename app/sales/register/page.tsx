@@ -64,9 +64,10 @@ export default function SalesRegisterPage() {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="coupon_code" className="text-sm font-medium text-gray-300">Vendor Coupon Code</label>
-                <Input id="coupon_code" name="coupon_code" required className="bg-gray-900/50 border-gray-700 text-white focus-visible:ring-purple-500" placeholder="Ask your vendor for this code" />
+                <label htmlFor="vendor_name" className="text-sm font-medium text-gray-300">Vendor Name *</label>
+                <Input id="vendor_name" name="vendor_name" required minLength={2} maxLength={100} placeholder="Enter Vendor Name" className="bg-gray-900/50 border-gray-700 text-white focus-visible:ring-purple-500" />
               </div>
+
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

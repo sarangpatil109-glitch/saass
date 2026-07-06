@@ -39,7 +39,7 @@ export default function ResetPasswordPage() {
       setSuccess(true)
       setLoading(false)
       setTimeout(() => {
-        router.push('/dashboard')
+        router.push('/')
       }, 2000)
     }
   }
@@ -61,7 +61,7 @@ export default function ResetPasswordPage() {
               </div>
               <h3 className="text-lg font-medium text-gray-900 dark:text-white">Password Updated</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Your password has been changed successfully. Redirecting you to the dashboard...
+                Your password has been changed successfully. Redirecting you to your dashboard...
               </p>
             </div>
           ) : (

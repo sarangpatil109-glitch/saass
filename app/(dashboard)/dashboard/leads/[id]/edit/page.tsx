@@ -4,7 +4,8 @@ import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 import { LeadForm } from '@/components/crm/LeadForm'
 
-export default async function EditLeadPage({ params }: { params: { id: string } }) {
+export default async function (props: { params: Promise<any> }) {
+  const params = await props.params;
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -13,7 +14,7 @@ export default async function EditLeadPage({ params }: { params: { id: string } 
   const { data: lead } = await supabase.from('leads').select('*').eq('id', params.id).single()
   if (!lead) redirect('/dashboard/leads')
 
-  const { data: vendors } = await supabase.from('vendors').select('id, company_name').is('deleted_at', null)
+  const { data: vendors } = await supabase.from('vendors').select('id, business_name').is('deleted_at', null)
   const { data: execs } = await supabase.from('sales_executives').select('id, full_name').is('deleted_at', null)
   const { data: products } = await supabase.from('products').select('id, name')
 

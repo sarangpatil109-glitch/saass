@@ -16,7 +16,7 @@ async function checkAdmin() {
 
 async function uploadFile(supabase: any, file: File | null, pathPrefix: string): Promise<string | null> {
   if (!file || file.size === 0) return null;
-  const ext = file.name.split('.').pop();
+  const ext = (file.name || '').split('.').pop();
   const fileName = `${pathPrefix}-${Date.now()}.${ext}`;
   const { data, error } = await supabase.storage.from('vendor_files').upload(fileName, file);
   if (error) {
@@ -34,15 +34,6 @@ async function generateVendorCode(supabase: any) {
   return `VND-${nextNum.toString().padStart(6, '0')}`
 }
 
-// Generate GYMOS-AB12CD
-async function generateCouponCode() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  let result = ''
-  for (let i = 0; i < 6; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return `GYMOS-${result}`
-}
 
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
@@ -79,8 +70,7 @@ export async function createVendor(formData: FormData) {
       await supabaseAdmin.from('profiles').upsert({
         id: user_id,
         email: login_email,
-        role: 'vendor',
-        status: 'active'
+        role: 'vendor'
       });
     }
 
@@ -97,8 +87,7 @@ export async function createVendor(formData: FormData) {
       notes: formData.get('notes'),
       status: formData.get('status') || 'Active',
       logo_url,
-      commission_type: formData.get('commission_type') || 'percentage',
-      commission_value: Number(formData.get('commission_value')) || 0
+
     }
 
     const { data, error } = await supabase.from('vendors').insert(vendor).select().single()
@@ -125,7 +114,8 @@ export async function createVendor(formData: FormData) {
     revalidatePath('/dashboard/vendors')
     return { data, error: null }
   } catch (error: any) {
-    return { data: null, error: error.message }
+    console.error('Action Error:', error);
+    return { data: null, error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -146,8 +136,7 @@ export async function updateVendor(id: string, formData: FormData) {
       country: formData.get('country') || 'India',
       notes: formData.get('notes'),
       status: formData.get('status'),
-      commission_type: formData.get('commission_type'),
-      commission_value: Number(formData.get('commission_value')) || 0,
+
       updated_at: new Date().toISOString()
     }
 
@@ -174,7 +163,8 @@ export async function updateVendor(id: string, formData: FormData) {
     revalidatePath(`/dashboard/vendors/${id}`)
     return { data, error: null }
   } catch (error: any) {
-    return { data: null, error: error.message }
+    console.error('Action Error:', error);
+    return { data: null, error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -197,7 +187,8 @@ export async function updateVendorStatus(id: string, status: string) {
     revalidatePath(`/dashboard/vendors/${id}`)
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -222,7 +213,8 @@ export async function hardDeleteVendor(id: string) {
     revalidatePath('/dashboard/vendors')
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -246,7 +238,8 @@ export async function assignProductToVendor(vendorId: string, productId: string)
     revalidatePath(`/dashboard/vendors/${vendorId}`)
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -267,29 +260,11 @@ export async function removeProductFromVendor(vendorId: string, productId: strin
     revalidatePath(`/dashboard/vendors/${vendorId}`)
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
-
-export async function regenerateCoupon(id: string) {
-  try {
-    const { supabase, user } = await checkAdmin()
-    const newCoupon = await generateCouponCode()
-    const { error } = await supabase.from('vendors').update({ coupon_code: newCoupon }).eq('id', id)
-    if (error) throw error
-    await supabase.from('vendor_coupon_codes').insert({ vendor_id: id, code: newCoupon, is_active: true })
-    await supabase.from('vendor_coupon_codes').update({ is_active: false, deactivated_at: new Date().toISOString() }).eq('vendor_id', id).neq('code', newCoupon)
-    if (user?.id) {
-      await supabase.from('vendor_activity_logs').insert({ vendor_id: id, action: 'Coupon Regenerated', details: `Coupon code regenerated to ${newCoupon}`, performed_by: user.id })
-    }
-    revalidatePath('/dashboard/vendors')
-    revalidatePath(`/dashboard/vendors/${id}`)
-    return { error: null }
-  } catch (error: any) {
-    return { error: error.message }
-  }
-}
 
 export async function updateVendorProfile(formData: FormData) {
   try {
@@ -302,7 +277,7 @@ export async function updateVendorProfile(formData: FormData) {
       address: formData.get('address'), 
       city: formData.get('city'), 
       state: formData.get('state'), 
-      pin_code: formData.get('pin_code'), 
+      account_holder_name: formData.get('account_holder_name'),
       bank_name: formData.get('bank_name'),
       account_number: formData.get('account_number'),
       ifsc_code: formData.get('ifsc_code'),
@@ -319,6 +294,12 @@ export async function updateVendorProfile(formData: FormData) {
       vendor.logo_url = await uploadFile(supabase, logoFile, `logos/${currentVendor.vendor_code}`);
     }
 
+    const qrFile = formData.get('upi_qr') as File | null;
+    if (qrFile && qrFile.size > 0) {
+      const url = await uploadFile(supabase, qrFile, `qr_codes/${currentVendor.vendor_code}`);
+      if (url) vendor.upi_qr_url = url;
+    }
+
     const { error } = await supabase.from('vendors').update(vendor).eq('id', currentVendor.id)
     if (error) throw error
     revalidatePath('/dashboard/vendor/profile')
@@ -326,6 +307,7 @@ export async function updateVendorProfile(formData: FormData) {
     revalidatePath('/vendor/settings')
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }

@@ -176,25 +176,6 @@ export function VendorForm({ initialData }: { initialData?: any }) {
             </div>
           </Card>
 
-          <Card className="p-6 bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Commission</h3>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Commission Type</label>
-                  <select name="commission_type" defaultValue={initialData?.commission_type || 'percentage'} className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white">
-                    <option value="percentage">Percentage</option>
-                    <option value="fixed">Fixed Amount</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Commission Value</label>
-                  <Input type="number" step="0.01" name="commission_value" defaultValue={initialData?.commission_value || 0} required />
-                </div>
-              </div>
-            </div>
-          </Card>
-
           {!isEdit && (
             <Card className="p-6 bg-white dark:bg-gray-900 shadow-sm border border-gray-100 dark:border-gray-800">
               <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Vendor Login Credentials</h3>

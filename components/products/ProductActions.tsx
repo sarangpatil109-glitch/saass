@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/Button'
 import { Edit, Copy, Archive, Trash2, RotateCcw, Loader2 } from 'lucide-react'
-import { duplicateProduct, archiveProduct, restoreProduct, hardDeleteProduct, softDeleteProduct } from '@/app/actions/product'
+import { duplicateProduct, archiveProduct, restoreProduct, hardDeleteProduct } from '@/app/actions/product'
 import Link from 'next/link'
 
 export function ProductActions({ product }: { product: any }) {

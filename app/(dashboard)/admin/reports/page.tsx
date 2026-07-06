@@ -1,9 +1,12 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { Card } from '@/components/Card'
 import { TrendingUp, IndianRupee, ShoppingCart, Users } from 'lucide-react'
 
-export default async function ReportsPage() {
+export default async function ReportsPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -52,9 +55,11 @@ export default async function ReportsPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Reports</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Revenue, commission, and activity reports for the platform.</p>
+      </div>
+        <DateRangeFilter />
       </div>
 
       {/* KPI Summary */}

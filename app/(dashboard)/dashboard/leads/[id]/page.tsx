@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { Card } from '@/components/Card'
 import { Button } from '@/components/Button'
 
-export default async function LeadDetailsPage({ params }: { params: { id: string } }) {
+export default async function (props: { params: Promise<any> }) {
+  const params = await props.params;
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
@@ -14,7 +15,7 @@ export default async function LeadDetailsPage({ params }: { params: { id: string
   const { data: lead } = await supabase.from('leads').select(`
     *,
     products(name),
-    vendors(company_name),
+    vendors(business_name),
     sales_executives(full_name)
   `).eq('id', params.id).single()
   
@@ -34,12 +35,14 @@ export default async function LeadDetailsPage({ params }: { params: { id: string
         </Link>
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">{lead.business_name}</h1>
               <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
                 {lead.pipeline_stage}
               </span>
             </div>
+        
+      </div>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Lead Owner: {lead.customer_name} • #{lead.lead_number}</p>
           </div>
           <div className="flex gap-2">
@@ -100,7 +103,7 @@ export default async function LeadDetailsPage({ params }: { params: { id: string
               <div className="col-span-2 border-t border-gray-100 dark:border-gray-800 mt-2 pt-4 grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-gray-500 mb-1">Assigned Vendor</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{lead.vendors?.company_name || 'None'}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{lead.vendors?.business_name || 'None'}</p>
                 </div>
                 <div>
                   <p className="text-gray-500 mb-1">Assigned Sales Executive</p>

@@ -14,13 +14,6 @@ export async function approveSalesExecutive(salesExecId: string) {
 
   if (salesError) return { error: salesError.message }
 
-  // 2. Update profiles table
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ status: 'active' })
-    .eq('id', salesExecId)
-
-  if (profileError) return { error: profileError.message }
 
   revalidatePath('/vendor/team')
   return { success: true }
@@ -36,12 +29,6 @@ export async function rejectSalesExecutive(salesExecId: string) {
 
   if (salesError) return { error: salesError.message }
 
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ status: 'inactive' })
-    .eq('id', salesExecId)
-
-  if (profileError) return { error: profileError.message }
 
   revalidatePath('/vendor/team')
   return { success: true }
@@ -57,12 +44,6 @@ export async function suspendSalesExecutive(salesExecId: string) {
 
   if (salesError) return { error: salesError.message }
 
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ status: 'suspended' })
-    .eq('id', salesExecId)
-
-  if (profileError) return { error: profileError.message }
 
   revalidatePath('/vendor/team')
   return { success: true }

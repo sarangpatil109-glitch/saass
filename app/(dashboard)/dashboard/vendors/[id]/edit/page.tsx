@@ -4,7 +4,8 @@ import { VendorForm } from '@/components/vendors/VendorForm'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
-export default async function EditVendorPage({ params }: { params: { id: string } }) {
+export default async function (props: { params: Promise<any> }) {
+  const params = await props.params;
   const supabase = await createClient()
 
   // Protect route

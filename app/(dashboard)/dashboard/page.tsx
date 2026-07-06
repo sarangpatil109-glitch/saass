@@ -1,7 +1,11 @@
-import { redirect } from 'next/navigation';
+import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
+;
 import { createClient } from '@/utils/supabase/server';
 
-export default async function DashboardController() {
+export default async function DashboardController(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 

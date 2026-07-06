@@ -20,7 +20,7 @@ async function checkSalesExec() {
   if (!user) throw new Error('Unauthorized')
   
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'sales') throw new Error('Forbidden')
+  if (profile?.role !== 'sales_executive') throw new Error('Forbidden')
   
   return { supabase, user }
 }
@@ -32,33 +32,19 @@ async function generateEmployeeCode(supabase: any) {
   return `SE-${nextNum.toString().padStart(6, '0')}`
 }
 
-async function resolveVendor(supabase: any, formData: FormData) {
-  const vendorId = formData.get('vendor_id') as string
-  const inviteCode = formData.get('invite_code') as string
-  const couponCode = formData.get('coupon_code') as string
 
-  let vendor = null
-
-  if (vendorId) {
-    const { data } = await supabase.from('vendors').select('id, vendor_code, coupon_code').eq('id', vendorId).single()
-    vendor = data
-  } else if (couponCode) {
-    const { data } = await supabase.from('vendors').select('id, vendor_code, coupon_code').eq('coupon_code', couponCode).single()
-    vendor = data
-  }
-
-  if (!vendor) {
-    throw new Error('A valid Vendor is required. Please select a vendor or provide a valid coupon code.')
-  }
-
-  return vendor
-}
 
 export async function createSalesExecutive(formData: FormData) {
   try {
     const { supabase, user } = await checkAdmin()
     
-    const vendor = await resolveVendor(supabase, formData)
+    const vendorId = formData.get('vendor_id') as string
+    let vendor = null
+    if (vendorId) {
+      const { data } = await supabase.from('vendors').select('id, vendor_code').eq('id', vendorId).single()
+      vendor = data
+    }
+    
     const employee_code = (formData.get('employee_code') as string) || await generateEmployeeCode(supabase)
     
     const first_name = formData.get('first_name') as string
@@ -66,12 +52,11 @@ export async function createSalesExecutive(formData: FormData) {
 
     const exec = {
       employee_code,
-      vendor_id: vendor.id,
-      vendor_code: vendor.vendor_code,
-      vendor_coupon_code: vendor.coupon_code,
+      vendor_id: vendor?.id || null,
+      vendor_code: vendor?.vendor_code || null,
       first_name,
       last_name,
-      full_name: `${first_name} ${last_name}`.trim(),
+      full_name: [first_name, last_name].filter(Boolean).join(' ').trim(),
       email: formData.get('email'),
       phone: formData.get('phone'),
       password_hash: formData.get('password'),
@@ -88,7 +73,9 @@ export async function createSalesExecutive(formData: FormData) {
       profile_photo: formData.get('profile_photo'),
       notes: formData.get('notes'),
       status: formData.get('status') || 'Active',
+      vendor_name: (formData.get('vendor_name') as string) || null,
     }
+
 
     const { data, error } = await supabase.from('sales_executives').insert(exec).select().single()
     if (error) {
@@ -102,14 +89,48 @@ export async function createSalesExecutive(formData: FormData) {
     await supabase.from('sales_activity_logs').insert({
       sales_exec_id: data.id,
       action: 'Created',
-      details: `Sales Executive was created and mapped to Vendor ${vendor.vendor_code}`,
+      details: vendor ? `Sales Executive was created and mapped to Vendor ${vendor.vendor_code}` : `Sales Executive was created without a vendor`,
       performed_by: user.id
     })
 
     revalidatePath('/dashboard/sales-executives')
     return { data, error: null }
   } catch (error: any) {
-    return { data: null, error: error.message }
+    console.error('Action Error in createSalesExecutive:', error)
+    return { data: null, error: `Database Error: ${error.message}` }
+  }
+}
+
+export async function assignVendorToSalesExec(salesExecId: string, vendorId: string | null) {
+  try {
+    const { supabase, user } = await checkAdmin()
+    
+    let vendorCode = null;
+    if (vendorId) {
+      const { data: vendor } = await supabase.from('vendors').select('vendor_code').eq('id', vendorId).single()
+      vendorCode = vendor?.vendor_code || null;
+    }
+
+    const { error } = await supabase.from('sales_executives').update({ 
+      vendor_id: vendorId,
+      vendor_code: vendorCode
+    }).eq('id', salesExecId)
+    
+    if (error) throw error
+
+    await supabase.from('sales_activity_logs').insert({
+      sales_exec_id: salesExecId,
+      action: 'Vendor Assigned',
+      details: vendorId ? `Assigned to Vendor ${vendorCode}` : 'Unassigned from Vendor',
+      performed_by: user.id
+    })
+
+    revalidatePath('/dashboard/sales-executives')
+    revalidatePath(`/dashboard/sales-executives/${salesExecId}`)
+    return { error: null }
+  } catch (error: any) {
+    console.error('Action Error in assignVendorToSalesExec:', error)
+    return { error: `Database Error: ${error.message}` }
   }
 }
 
@@ -117,16 +138,19 @@ export async function updateSalesExecutive(id: string, formData: FormData) {
   try {
     const { supabase, user } = await checkAdmin()
 
-    let vendorMapping = {}
-    if (formData.get('vendor_id') || formData.get('coupon_code')) {
+    let vendorMapping: any = { vendor_id: null, vendor_code: null }
+    const vendorId = formData.get('vendor_id') as string
+    if (vendorId) {
        try {
-         const vendor = await resolveVendor(supabase, formData)
-         vendorMapping = {
-            vendor_id: vendor.id,
-            vendor_code: vendor.vendor_code,
-            vendor_coupon_code: vendor.coupon_code,
+         const { data: vendor } = await supabase.from('vendors').select('id, vendor_code').eq('id', vendorId).single()
+         if (vendor) {
+           vendorMapping = {
+              vendor_id: vendor.id,
+              vendor_code: vendor.vendor_code,
+           }
          }
        } catch (e) {
+         console.error('Error fetching vendor during assignment:', e)
        }
     }
     
@@ -137,7 +161,7 @@ export async function updateSalesExecutive(id: string, formData: FormData) {
       ...vendorMapping,
       first_name,
       last_name,
-      full_name: `${first_name} ${last_name}`.trim(),
+      full_name: [first_name, last_name].filter(Boolean).join(' ').trim(),
       email: formData.get('email'),
       phone: formData.get('phone'),
       designation: formData.get('designation') || 'Sales Executive',
@@ -153,6 +177,7 @@ export async function updateSalesExecutive(id: string, formData: FormData) {
       profile_photo: formData.get('profile_photo'),
       notes: formData.get('notes'),
       status: formData.get('status'),
+      vendor_name: (formData.get('vendor_name') as string) || null,
       updated_at: new Date().toISOString()
     }
     
@@ -166,6 +191,7 @@ export async function updateSalesExecutive(id: string, formData: FormData) {
         if (error.message.includes('email')) throw new Error('Email must be unique')
         if (error.message.includes('employee_code')) throw new Error('Employee code must be unique')
       }
+      console.error('Supabase update error:', error)
       throw error
     }
 
@@ -180,7 +206,8 @@ export async function updateSalesExecutive(id: string, formData: FormData) {
     revalidatePath(`/dashboard/sales-executives/${id}`)
     return { data, error: null }
   } catch (error: any) {
-    return { data: null, error: error.message }
+    console.error('Action Error in updateSalesExecutive:', error)
+    return { data: null, error: `Database Error: ${error.message}` }
   }
 }
 
@@ -201,7 +228,8 @@ export async function updateSalesStatus(id: string, status: string) {
     revalidatePath(`/dashboard/sales-executives/${id}`)
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -221,7 +249,8 @@ export async function softDeleteSalesExecutive(id: string) {
     revalidatePath('/dashboard/sales-executives')
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -234,7 +263,8 @@ export async function hardDeleteSalesExecutive(id: string) {
     revalidatePath('/dashboard/sales-executives')
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -264,20 +294,22 @@ export async function assignTarget(formData: FormData) {
     revalidatePath(`/dashboard/sales-executives/${target.sales_exec_id}`)
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
 async function uploadFile(supabase: any, file: File | null, pathPrefix: string): Promise<string | null> {
   if (!file || file.size === 0) return null;
-  const ext = file.name.split('.').pop();
+  const ext = (file.name || '').split('.').pop();
   const fileName = `${pathPrefix}-${Date.now()}.${ext}`;
-  const { data, error } = await supabase.storage.from('vendor_files').upload(fileName, file);
+  const bucket = pathPrefix.startsWith('qr_codes/') ? 'qr-codes' : 'vendor_files';
+  const { data, error } = await supabase.storage.from(bucket).upload(fileName, file);
   if (error) {
     console.error('Upload error:', error);
     return null;
   }
-  const { data: publicData } = supabase.storage.from('vendor_files').getPublicUrl(data.path);
+  const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(data.path);
   return publicData.publicUrl;
 }
 
@@ -289,16 +321,28 @@ export async function updateSalesProfile(formData: FormData) {
       phone: formData.get('phone'),
       whatsapp_number: formData.get('whatsapp_number'),
       address: formData.get('address'),
+      account_holder_name: formData.get('account_holder_name'),
+      bank_name: formData.get('bank_name'),
+      account_number: formData.get('account_number'),
+      ifsc_code: formData.get('ifsc_code'),
+      upi_id: formData.get('upi_id'),
+      vendor_name: (formData.get('vendor_name') as string) || null,
       updated_at: new Date().toISOString()
     }
 
-    const { data: rec } = await supabase.from('sales_executives').select('id, employee_code').eq('user_id', user.id).single()
+    const { data: rec } = await supabase.from('sales_executives').select('id, employee_code').eq('id', user.id).single()
     if (!rec) throw new Error('Profile not found')
 
     const photoFile = formData.get('profile_photo') as File | null;
     if (photoFile && photoFile.size > 0) {
       const url = await uploadFile(supabase, photoFile, `sales_photos/${rec.employee_code}`);
       if (url) update.profile_photo = url;
+    }
+
+    const qrFile = formData.get('upi_qr') as File | null;
+    if (qrFile && qrFile.size > 0) {
+      const url = await uploadFile(supabase, qrFile, `qr_codes/${rec.employee_code}`);
+      if (url) update.upi_qr_url = url;
     }
 
     const { error } = await supabase.from('sales_executives').update(update).eq('id', rec.id)
@@ -315,6 +359,7 @@ export async function updateSalesProfile(formData: FormData) {
     revalidatePath('/sales/settings')
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }

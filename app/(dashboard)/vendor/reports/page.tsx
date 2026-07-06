@@ -1,15 +1,18 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { Card } from '@/components/Card'
 import { TrendingUp, IndianRupee, ShoppingCart, Users } from 'lucide-react'
 
-export default async function VendorReportsPage() {
+export default async function VendorReportsPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (process.env.DEVELOPMENT_MODE !== 'true' && !user) redirect('/login')
 
-  const { data: vendorUser } = await supabase.from('vendor_users').select('vendor_id, vendors(id, status)').eq('user_id', (user?.id || '')).single();
+  const { data: vendorUser } = await applyDateFilter(supabase.from('vendor_users').select('vendor_id, vendors(id, status)'), searchParams).eq('user_id', (user?.id || '')).single();
   const vendor = vendorUser?.vendors as any;
   
   if (!vendor || vendor.status !== 'Active') {
@@ -60,9 +63,11 @@ export default async function VendorReportsPage() {
 
   return (
     <div className="space-y-6 pb-12">
-      <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Reports</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Revenue, commission, and activity reports for your network.</p>
+      </div>
+        <DateRangeFilter />
       </div>
 
       {/* KPI Summary */}

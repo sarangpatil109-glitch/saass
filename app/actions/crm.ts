@@ -82,7 +82,8 @@ export async function createLead(formData: FormData) {
     revalidatePath('/dashboard/leads')
     return { data, error: null }
   } catch (error: any) {
-    return { data: null, error: error.message }
+    console.error('Action Error:', error);
+    return { data: null, error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -121,7 +122,8 @@ export async function updateLead(id: string, formData: FormData) {
     revalidatePath(`/dashboard/leads/${id}`)
     return { data, error: null }
   } catch (error: any) {
-    return { data: null, error: error.message }
+    console.error('Action Error:', error);
+    return { data: null, error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -168,7 +170,8 @@ export async function updateLeadStage(leadId: string, newStage: string) {
     revalidatePath(`/dashboard/leads/${leadId}`)
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -195,7 +198,8 @@ export async function createFollowup(formData: FormData) {
     revalidatePath(`/dashboard/leads/${leadId}`)
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -212,7 +216,8 @@ export async function completeFollowup(id: string, leadId: string) {
     revalidatePath(`/dashboard/leads/${leadId}`)
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -234,7 +239,8 @@ export async function addNote(formData: FormData) {
     revalidatePath(`/dashboard/leads/${leadId}`)
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }
 
@@ -249,6 +255,7 @@ export async function softDeleteLead(id: string) {
     revalidatePath('/dashboard/leads')
     return { error: null }
   } catch (error: any) {
-    return { error: error.message }
+    console.error('Action Error:', error);
+    return { error: `Database Error: ${error.message || JSON.stringify(error)}` }
   }
 }

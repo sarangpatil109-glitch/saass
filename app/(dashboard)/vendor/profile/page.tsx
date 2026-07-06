@@ -1,8 +1,11 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { VendorProfileForm } from '@/components/vendors/VendorProfileForm'
 
-export default async function VendorProfilePage() {
+export default async function VendorProfilePage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   // Protect route
@@ -12,7 +15,7 @@ export default async function VendorProfilePage() {
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', (user?.id || '')).single()
   if (process.env.DEVELOPMENT_MODE !== 'true' && profile?.role !== 'vendor') redirect('/unauthorized')
 
-  const { data: vendorUser } = await supabase.from('vendor_users').select('vendor_id, vendors(*)').eq('user_id', (user?.id || '')).single()
+  const { data: vendorUser } = await applyDateFilter(supabase.from('vendor_users').select('vendor_id, vendors(*)'), searchParams).eq('user_id', (user?.id || '')).single()
   const vendorProfile = vendorUser?.vendors as any;
   
   if (!vendorProfile) {
@@ -26,9 +29,11 @@ export default async function VendorProfilePage() {
 
   return (
     <div className="space-y-6 pb-12">
-      <div>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4"><div>
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">My Profile</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage your vendor contact details and view active codes.</p>
+      </div>
+        <DateRangeFilter />
       </div>
 
       <VendorProfileForm profile={vendorProfile} userEmail={(user?.email || '')!} />

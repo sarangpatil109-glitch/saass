@@ -1,10 +1,13 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { DateRangeFilter } from '@/components/shared/date-range-filter'
+import { applyDateFilter } from '@/lib/date-filter'
 import { VendorForm } from '@/components/vendors/VendorForm'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
-export default async function NewVendorPage() {
+export default async function NewVendorPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
   const supabase = await createClient()
 
   // Protect route

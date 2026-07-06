@@ -4,7 +4,8 @@ import { SalesExecutiveForm } from '@/components/sales/SalesExecutiveForm'
 import { ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
 
-export default async function EditSalesExecutivePage({ params }: { params: { id: string } }) {
+export default async function (props: { params: Promise<any> }) {
+  const params = await props.params;
   const supabase = await createClient()
 
   // Protect route
@@ -17,7 +18,7 @@ export default async function EditSalesExecutivePage({ params }: { params: { id:
   const { data: exec } = await supabase.from('sales_executives').select('*').eq('id', params.id).single()
   if (!exec) redirect('/dashboard/sales-executives')
 
-  const { data: vendors } = await supabase.from('vendors').select('id, company_name, vendor_code').is('deleted_at', null).order('company_name')
+  const { data: vendors } = await supabase.from('vendors').select('id, business_name, vendor_code').is('deleted_at', null).order('business_name')
 
   return (
     <div className="space-y-6 pb-12">

@@ -22,8 +22,7 @@ export async function createSalesExec(formData: FormData) {
     id: profileId,
     email: email,
     full_name: full_name,
-    role: 'sales_executive',
-    status: status
+    role: 'sales_executive'
   })
 
   if (profileError) {
@@ -32,7 +31,7 @@ export async function createSalesExec(formData: FormData) {
 
   // 2. Create Sales Executive (vendor_code will be auto-synced by the DB trigger)
   const { data: execData, error: execError } = await supabase.from('sales_executives').insert({
-    profile_id: profileId,
+    id: profileId,
     full_name,
     email,
     phone,
@@ -64,7 +63,7 @@ export async function updateSalesExec(id: string, formData: FormData) {
   const vendor_id = formData.get('vendor_id') as string
 
   // Check if vendor changed
-  const { data: currentExec } = await supabase.from('sales_executives').select('vendor_id, full_name, profile_id').eq('id', id).single()
+  const { data: currentExec } = await supabase.from('sales_executives').select('vendor_id, full_name, id').eq('id', id).single()
 
   const { data, error } = await supabase.from('sales_executives').update({
     full_name,
@@ -81,8 +80,8 @@ export async function updateSalesExec(id: string, formData: FormData) {
     return { error: error.message }
   }
 
-  // Sync profile status and name
-  await supabase.from('profiles').update({ status, full_name }).eq('id', data.profile_id)
+  // Sync profile name
+  await supabase.from('profiles').update({ full_name }).eq('id', data.id)
 
   if (currentExec && currentExec.vendor_id !== vendor_id) {
     await logActivity('Vendor Changed', { exec_id: id, old_vendor_id: currentExec.vendor_id, new_vendor_id: vendor_id })
@@ -96,10 +95,10 @@ export async function updateSalesExec(id: string, formData: FormData) {
 export async function deleteSalesExec(id: string) {
   const supabase = await createClient()
   
-  const { data: exec } = await supabase.from('sales_executives').select('profile_id, full_name').eq('id', id).single()
+  const { data: exec } = await supabase.from('sales_executives').select('id, full_name').eq('id', id).single()
   
   if (exec) {
-    const { error } = await supabase.from('profiles').delete().eq('id', exec.profile_id)
+    const { error } = await supabase.from('profiles').delete().eq('id', exec.id)
     if (error) {
       return { error: error.message }
     }
@@ -119,7 +118,7 @@ export async function updateSalesExecStatus(id: string, newStatus: string) {
 
   if (error) return { error: error.message }
 
-  await supabase.from('profiles').update({ status: newStatus }).eq('id', data.profile_id)
+
 
   let action = 'Sales Executive Updated'
   if (newStatus === 'inactive') action = 'Sales Executive Disabled'

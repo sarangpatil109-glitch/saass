@@ -156,7 +156,7 @@ export function LeadForm({ initialData, vendors = [], salesExecs = [], products 
               <select name="assigned_vendor_id" defaultValue={initialData?.assigned_vendor_id || ''} className="w-full px-3 py-2 text-sm bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-gray-900 dark:text-white">
                 <option value="">-- None --</option>
                 {vendors.map(v => (
-                  <option key={v.id} value={v.id}>{v.company_name}</option>
+                  <option key={v.id} value={v.id}>{v.business_name}</option>
                 ))}
               </select>
             </div>
