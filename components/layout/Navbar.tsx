@@ -6,9 +6,10 @@ import { Search, Bell, Menu, X, User } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { logout } from '@/app/actions/auth'
+import { useSidebar } from '@/components/layout/SidebarContext'
 
 export function Navbar() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { isSidebarOpen, toggleSidebar } = useSidebar()
   const [notificationsOpen, setNotificationsOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   
@@ -23,10 +24,10 @@ export function Navbar() {
       <div className="px-3 py-3 lg:px-5 lg:pl-3 flex items-center justify-between h-full">
         <div className="flex items-center">
           <button 
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            onClick={toggleSidebar}
             className="md:hidden p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg mr-2"
           >
-            {mobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            {isSidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
           </button>
           
           <Link href="/dashboard" className="flex items-center ml-2 md:mr-24">
