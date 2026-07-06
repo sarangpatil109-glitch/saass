@@ -3,64 +3,42 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { 
+  LogOut,
+  X,
   LayoutDashboard, 
   PackageSearch, 
   Users, 
   Store, 
   Briefcase, 
   Percent, 
-  FileArchive, 
-  KeyRound, 
-  PieChart, 
-  Settings,
-  LogOut,
   Banknote,
-  X
+  PieChart, 
+  Settings
 } from 'lucide-react'
 import { logout } from '@/app/actions/auth'
 import { useSidebar } from '@/components/layout/SidebarContext'
 
-export function Sidebar({ userRole = 'admin' }: { userRole?: string }) {
+const ICONS: Record<string, any> = {
+  dashboard: LayoutDashboard,
+  packagesearch: PackageSearch,
+  users: Users,
+  store: Store,
+  briefcase: Briefcase,
+  percent: Percent,
+  banknote: Banknote,
+  piechart: PieChart,
+  settings: Settings,
+}
+
+export interface SidebarLink {
+  name: string
+  href: string
+  iconName: string
+}
+
+export function ResponsiveSidebar({ links }: { links: SidebarLink[] }) {
   const pathname = usePathname()
   const { isSidebarOpen, closeSidebar } = useSidebar()
-
-  let links: any[] = []
-
-  if (userRole === 'admin') {
-    links = [
-      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-      { name: 'Sales Requests', href: '/admin/sales-requests', icon: PackageSearch },
-      { name: 'Commissions', href: '/admin/commissions', icon: Percent },
-      { name: 'Commission Payouts', href: '/admin/commission-payouts', icon: Banknote },
-      { name: 'Products', href: '/dashboard/products', icon: PackageSearch },
-      { name: 'Customers', href: '/dashboard/customers', icon: Users },
-      { name: 'Vendors', href: '/dashboard/vendors', icon: Store },
-      { name: 'Sales Executives', href: '/dashboard/sales-executives', icon: Briefcase },
-      { name: 'Reports', href: '/admin/reports', icon: PieChart },
-      { name: 'Settings', href: '/admin/settings', icon: Settings },
-    ]
-  } else if (userRole === 'vendor') {
-    links = [
-      { name: 'Dashboard', href: '/vendor/dashboard', icon: LayoutDashboard },
-      { name: 'Sales Executives', href: '/vendor/team', icon: Briefcase },
-      { name: 'Leads', href: '/vendor/leads', icon: Users },
-      { name: 'Orders', href: '/vendor/orders', icon: PackageSearch },
-      { name: 'Commission', href: '/vendor/commission', icon: Percent },
-      { name: 'Reports', href: '/vendor/reports', icon: PieChart },
-      { name: 'Profile', href: '/vendor/profile', icon: Settings },
-      { name: 'Settings', href: '/vendor/settings', icon: Settings },
-    ]
-  } else if (userRole === 'sales_executive') {
-    links = [
-      { name: 'Dashboard', href: '/sales/dashboard', icon: LayoutDashboard },
-      { name: 'Assigned Leads', href: '/sales/leads', icon: Users },
-      { name: 'Customers', href: '/sales/customers', icon: Store },
-      { name: 'Orders', href: '/sales/orders', icon: PackageSearch },
-      { name: 'Commission', href: '/sales/commission', icon: Percent },
-      { name: 'Follow-ups', href: '/sales/followups', icon: PieChart },
-      { name: 'Profile', href: '/sales/profile', icon: Settings },
-    ]
-  }
 
   return (
     <>
@@ -95,7 +73,7 @@ export function Sidebar({ userRole = 'admin' }: { userRole?: string }) {
       
       <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
         {links.map((link) => {
-          const Icon = link.icon
+          const Icon = ICONS[link.iconName] || LayoutDashboard
           const isActive = pathname === link.href || pathname?.startsWith(link.href + '/')
           
           return (
